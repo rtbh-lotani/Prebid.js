@@ -103,6 +103,11 @@ export const spec = {
       computedEndpointUrl = FLEDGE_ENDPOINT_URL;
     }
 
+    const extraParams = validBidRequests[0].params.extraParams;
+    if (extraParams) {
+      mergeDeep(request, { ext: { extraParams }});
+    }
+
     return {
       method: 'POST',
       url: 'https://' + validBidRequests[0].params.region + '.' + computedEndpointUrl,
