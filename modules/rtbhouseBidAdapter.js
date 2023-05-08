@@ -95,7 +95,8 @@ export const spec = {
     let computedEndpointUrl = ENDPOINT_URL;
 
     const fledgeConfig = config.getConfig('fledgeConfig');
-    if (bidderRequest.fledgeEnabled && fledgeConfig) {
+    const fledgeEnabled = config.getConfig('fledgeEnabled');
+    if (fledgeEnabled && fledgeConfig) {
       mergeDeep(request, { ext: { fledge_config: fledgeConfig } });
       computedEndpointUrl = FLEDGE_ENDPOINT_URL;
     }
@@ -219,7 +220,7 @@ function mapImpression(slot, bidderRequest) {
     imp.bidfloor = bidfloor;
   }
 
-  if (bidderRequest.fledgeEnabled) {
+  if (config.getConfig('fledgeEnabled')) {
     imp.ext = imp.ext || {};
     imp.ext.ae = slot?.ortb2Imp?.ext?.ae
   } else {
