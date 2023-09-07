@@ -1,4 +1,4 @@
-import {deepAccess, isArray, logError, logInfo, mergeDeep, deepClone, deepSetValue} from '../src/utils.js';
+import {deepAccess, isArray, logError, logInfo, mergeDeep, deepClone, deepSetValue, logWarn} from '../src/utils.js';
 import {getOrigin} from '../libraries/getOrigin/index.js';
 import {BANNER, NATIVE} from '../src/mediaTypes.js';
 import {registerBidder} from '../src/adapters/bidderFactory.js';
@@ -50,15 +50,101 @@ const CONVERTER = ortbConverter({
   imp(buildImp, bidRequest, context) {
     const { bidderRequest } = context;
     const imp = buildImp(bidRequest, context);
-    deepSetValue(imp, 'tagid', deepAccess(imp, 'ext.data.pbadslot'));
-    // deepSetValue(imp, 'tagid', bidRequest.adUnitCode.toString());
+    // deepSetValue(imp, 'tagid', deepAccess(imp, 'ext.data.pbadslot'));
+    deepSetValue(imp, 'tagid', bidRequest.adUnitCode.toString());
     
     mergeDeep(imp, _mapImpression(bidRequest, bidderRequest));
     if (!imp.bidfloor && bidRequest.params.bidfloor) {
-      imp.bidfloor = bidRequest.params.bidfloor;
+      imp.bidfloor = parseFloat(bidRequest.params.bidfloor);
       logInfo('Setting up FLOOR value to', imp.bidfloor)
     }
     return imp;
+  },
+  // overrides: {
+  //   imp: {
+  //     bidfloor(setBidFloor, imp, bidRequest, context) {
+  //       // borrowed from OpenX :-)
+  //       // seems like it's not needed - done automatically
+  //       // enforce floors should always be in USD
+  //       // TODO: does it make sense that request.cur can be any currency, but request.imp[].bidfloorcur must be USD?
+  //       const floor = {};
+  //       setBidFloor(floor, bidRequest, {...context, currency: DEFAULT_CURRENCY_ARR[0]});
+  //       if (floor.bidfloorcur === DEFAULT_CURRENCY_ARR[0]) {
+  //         Object.assign(imp, floor);
+  //       }
+  //       logWarn('floor:', floor)
+  //     }
+  //   }
+  // }
+  bidResponse(buildBidResponse, bid, context) {
+    bid.ext = {test:1}
+    logWarn('in bidResponse for bid', deepClone(bid))
+    const bidResponse = buildBidResponse(bid, context);
+
+    bidResponse.creativeId = bid.adid;
+    if (bid.ext) mergeDeep(bidResponse.ext, bid.ext);
+
+    logWarn('built bidResponse:', bidResponse)
+    return bidResponse;
+  },
+  response(buildResponse, bidResponses, ortbResponse, context) {
+    logWarn('Building response for:\n', {buildResponse, bidResponses, ortbResponse, context})
+    const response = buildResponse(bidResponses, ortbResponse, context);
+    logWarn('response() return value after buildResponse():', deepClone(response))
+    // price may exist and is === 0 or there's no price prop at all (fledge req case)
+    response.bids = response.bids.filter(bid => {
+      logWarn('==>bid:', deepClone(bid))
+      return bid.cpm > 0
+    });
+    logWarn('ortbResponse:', deepClone(ortbResponse))
+
+    /* let fledgeAuctionConfigs = null;
+    ortbResponse.bidid ...
+    if (responseBody.bidid && isArray(responseBody?.ext?.igbid)) {
+      // we have fledge response
+      // mimic the original response ([{},...])
+      bids = this.interpretOrtbResponse({ body: responseBody.seatbid[0]?.bid }, originalRequest);
+
+      const seller = responseBody.ext.seller;
+      const decisionLogicUrl = responseBody.ext.decisionLogicUrl;
+      const sellerTimeout = 'sellerTimeout' in responseBody.ext ? { sellerTimeout: responseBody.ext.sellerTimeout } : {};
+      responseBody.ext.igbid.forEach((igbid) => {
+        const perBuyerSignals = {};
+        igbid.igbuyer.forEach(buyerItem => {
+          perBuyerSignals[buyerItem.igdomain] = buyerItem.buyersignal
+        });
+        fledgeAuctionConfigs = fledgeAuctionConfigs || {};
+        fledgeAuctionConfigs[igbid.impid] = mergeDeep(
+          {
+            seller,
+            decisionLogicUrl,
+            interestGroupBuyers: Object.keys(perBuyerSignals),
+            perBuyerSignals,
+          },
+          sellerTimeout
+        );
+      });
+    } else {
+      bids = this.interpretOrtbResponse(serverResponse, originalRequest);
+    }
+
+    if (fledgeAuctionConfigs) {
+      fledgeAuctionConfigs = Object.entries(fledgeAuctionConfigs).map(([bidId, cfg]) => {
+        return {
+          bidId,
+          config: Object.assign({
+            auctionSignals: {}
+          }, cfg)
+        }
+      });
+      logInfo('Response with FLEDGE:', { bids, fledgeAuctionConfigs });
+      return {
+        bids,
+        fledgeAuctionConfigs,
+      }
+    } */
+
+    return response;
   }
 });
 
@@ -115,7 +201,7 @@ export const spec = {
     return {
       method: 'POST',
       url: 'https://' + firstBidRequest.params.region + '.' + computedEndpointUrl,
-      data: JSON.stringify(ortbRequest)
+      data: ortbRequest
     };
   },
   _buildRequests: function (validBidRequests, bidderRequest) {
@@ -201,7 +287,8 @@ export const spec = {
       data: JSON.stringify(request)
     };
   },
-  interpretOrtbResponse: function (serverResponse, originalRequest) {
+  _interpretOrtbResponse: function (serverResponse, originalRequest) {
+    
     const responseBody = serverResponse.body;
     if (!isArray(responseBody)) {
       return [];
@@ -228,58 +315,23 @@ export const spec = {
     return bids;
   },
   interpretResponse: function (serverResponse, originalRequest) {
-    // const _bids = CONVERTER.fromORTB({response: serverResponse?.body || '', request: originalRequest.data}).bids;
-    // logInfo('interpretResponse bids:', _bids)
-
-    let bids;
-
-    const responseBody = serverResponse.body;
-    let fledgeAuctionConfigs = null;
-
-    if (responseBody.bidid && isArray(responseBody?.ext?.igbid)) {
-      // we have fledge response
-      // mimic the original response ([{},...])
-      bids = this.interpretOrtbResponse({ body: responseBody.seatbid[0]?.bid }, originalRequest);
-
-      const seller = responseBody.ext.seller;
-      const decisionLogicUrl = responseBody.ext.decisionLogicUrl;
-      const sellerTimeout = 'sellerTimeout' in responseBody.ext ? { sellerTimeout: responseBody.ext.sellerTimeout } : {};
-      responseBody.ext.igbid.forEach((igbid) => {
-        const perBuyerSignals = {};
-        igbid.igbuyer.forEach(buyerItem => {
-          perBuyerSignals[buyerItem.igdomain] = buyerItem.buyersignal
-        });
-        fledgeAuctionConfigs = fledgeAuctionConfigs || {};
-        fledgeAuctionConfigs[igbid.impid] = mergeDeep(
-          {
-            seller,
-            decisionLogicUrl,
-            interestGroupBuyers: Object.keys(perBuyerSignals),
-            perBuyerSignals,
-          },
-          sellerTimeout
-        );
-      });
-    } else {
-      bids = this.interpretOrtbResponse(serverResponse, originalRequest);
-    }
-
-    if (fledgeAuctionConfigs) {
-      fledgeAuctionConfigs = Object.entries(fledgeAuctionConfigs).map(([bidId, cfg]) => {
-        return {
-          bidId,
-          config: Object.assign({
-            auctionSignals: {}
-          }, cfg)
-        }
-      });
-      logInfo('Response with FLEDGE:', { bids, fledgeAuctionConfigs });
-      return {
-        bids,
-        fledgeAuctionConfigs,
+    logWarn('originalRequest:', originalRequest)
+    logWarn('serverResponse:', serverResponse)
+    if (!serverResponse.body) {
+      serverResponse.body = {nbr: 0};
+    } else if (isArray(serverResponse.body)) {
+      // let's wrap the array which is actually seatbid.bid with the OpenRTB response object
+      const seatbidBid = serverResponse.body;
+      serverResponse.body = {
+        seatbid: [{
+          bid: seatbidBid,
+          seat: BIDDER_CODE
+        }]
       }
     }
-    return bids;
+    const ortbResponse = CONVERTER.fromORTB({response: serverResponse.body, request: originalRequest.data}).bids;
+    logInfo('interpretResponse bids:', ortbResponse)
+    return ortbResponse
   }
 };
 registerBidder(spec);
@@ -302,8 +354,8 @@ function applyFloor(slot) {
 
 function _mapImpression(bidRequest, bidderRequest) {
   
-  if(_isBannerBid) return {banner: _mapBanner(bidRequest)}
-  if(_isNativeBid) return {native: _mapNative(bidRequest)}
+  if(_isBannerBid(bidRequest)) return {banner: _mapBanner(bidRequest)}
+  if(_isNativeBid(bidRequest)) return {native: _mapNative(bidRequest)}
 
 }
 /**
@@ -553,7 +605,7 @@ function mapNativeImage(image, type) {
     img.hmin = (minWidth / ratio.ratio_width * ratio.ratio_height);
   }
   if (image.sizes) {
-    const size = Array.isArray(image.sizes[0]) ? image.sizes[0] : image.sizes;
+    const size = isArray(image.sizes[0]) ? image.sizes[0] : image.sizes;
     img.w = size[0];
     img.h = size[1];
   }
