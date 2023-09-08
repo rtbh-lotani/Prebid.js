@@ -41,6 +41,13 @@ export const OPENRTB = {
     },
   }
 };
+function _logWarn(...args) {
+  logInfo(...args)
+}
+function _logInfo(...args) {
+  logInfo(...args)
+}
+
 const CONVERTER = ortbConverter({     
   context: {
       netRevenue: true,    // or false if your adapter should set bidResponse.netRevenue = false
@@ -49,14 +56,16 @@ const CONVERTER = ortbConverter({
   },
   imp(buildImp, bidRequest, context) {
     const { bidderRequest } = context;
+    // _logInfo('in imp(): bidRequest=',bidRequest)
     const imp = buildImp(bidRequest, context);
+    // _logInfo('in imp(): after buildImp imp=', imp)
     // deepSetValue(imp, 'tagid', deepAccess(imp, 'ext.data.pbadslot'));
     deepSetValue(imp, 'tagid', bidRequest.adUnitCode.toString());
     
     mergeDeep(imp, _mapImpression(bidRequest, bidderRequest));
     if (!imp.bidfloor && bidRequest.params.bidfloor) {
       imp.bidfloor = parseFloat(bidRequest.params.bidfloor);
-      logInfo('Setting up FLOOR value to', imp.bidfloor)
+      _logInfo('Setting up FLOOR value to', imp.bidfloor)
     }
     return imp;
   },
@@ -77,59 +86,64 @@ const CONVERTER = ortbConverter({
   //   }
   // }
   bidResponse(buildBidResponse, bid, context) {
-    bid.ext = {test:1}
-    logWarn('in bidResponse for bid', deepClone(bid))
-    const bidResponse = buildBidResponse(bid, context);
+    // bid.ext = {test:1}
+    _logWarn('in bidResponse for bid', deepClone(bid))
+    // this substitutes interpretBannerBid / interpretNativeBid
+    // check if there's mediaType
+    // if not skip that bid
+    if(!('mediaType' in bid)) return;
 
+    const bidResponse = buildBidResponse(bid, context);
+    _logWarn('in bidResponse for bid: buildBidResponse() returned', deepClone(bidResponse))
+    // the only change needed is adding creativeId
     bidResponse.creativeId = bid.adid;
+    // and adding ext if exists
     if (bid.ext) mergeDeep(bidResponse.ext, bid.ext);
 
-    logWarn('built bidResponse:', bidResponse)
+    _logWarn('built bidResponse:', bidResponse)
     return bidResponse;
   },
   response(buildResponse, bidResponses, ortbResponse, context) {
-    logWarn('Building response for:\n', {buildResponse, bidResponses, ortbResponse, context})
-    const response = buildResponse(bidResponses, ortbResponse, context);
-    logWarn('response() return value after buildResponse():', deepClone(response))
+    _logWarn('Building response for:\n', {buildResponse, bidResponses: deepClone(bidResponses), ortbResponse, context})
+    //filter out bid responses which do not have cpm > 0
     // price may exist and is === 0 or there's no price prop at all (fledge req case)
-    response.bids = response.bids.filter(bid => {
-      logWarn('==>bid:', deepClone(bid))
-      return bid.cpm > 0
-    });
-    logWarn('ortbResponse:', deepClone(ortbResponse))
+    bidResponses = bidResponses.filter(bid => {
+        _logWarn('==>bid:', deepClone(bid))
+        return bid.cpm > 0
+      });
+    const response = buildResponse(bidResponses, ortbResponse, context);
+    _logWarn('response() return value after buildResponse():', deepClone(response))
+    _logWarn('ortbResponse:', deepClone(ortbResponse))
+    
+    // We have to separate FLEDGE seatbid[].bid[] bid objects which are merged via 
+    // ext.igbid[].impid === seatbid[].bid[].impid
+    // from other regular contextual bids
 
-    /* let fledgeAuctionConfigs = null;
-    ortbResponse.bidid ...
-    if (responseBody.bidid && isArray(responseBody?.ext?.igbid)) {
+    
+    if (ortbResponse.bidid && isArray(ortbResponse?.ext?.igbid)) {
       // we have fledge response
-      // mimic the original response ([{},...])
-      bids = this.interpretOrtbResponse({ body: responseBody.seatbid[0]?.bid }, originalRequest);
+      // WARNING: source fledge_config can be obtained from ortbRequest.ext.fledge_config
+      // so it has not to be returned by the bidder!
 
-      const seller = responseBody.ext.seller;
-      const decisionLogicUrl = responseBody.ext.decisionLogicUrl;
-      const sellerTimeout = 'sellerTimeout' in responseBody.ext ? { sellerTimeout: responseBody.ext.sellerTimeout } : {};
-      responseBody.ext.igbid.forEach((igbid) => {
+      const fledgeAuctionConfigsObj = {};
+      // mimic the original response ([{},...])
+      const { seller, decisionLogicUrl, sellerTimeout } = ortbResponse.ext;
+
+      ortbResponse.ext.igbid.forEach((igbid) => {
         const perBuyerSignals = {};
         igbid.igbuyer.forEach(buyerItem => {
           perBuyerSignals[buyerItem.igdomain] = buyerItem.buyersignal
         });
-        fledgeAuctionConfigs = fledgeAuctionConfigs || {};
-        fledgeAuctionConfigs[igbid.impid] = mergeDeep(
-          {
+        fledgeAuctionConfigsObj[igbid.impid] = {
             seller,
             decisionLogicUrl,
             interestGroupBuyers: Object.keys(perBuyerSignals),
             perBuyerSignals,
-          },
-          sellerTimeout
-        );
+          };
+        if(sellerTimeout) fledgeAuctionConfigsObj[igbid.impid].sellerTimeout = sellerTimeout;
       });
-    } else {
-      bids = this.interpretOrtbResponse(serverResponse, originalRequest);
-    }
-
-    if (fledgeAuctionConfigs) {
-      fledgeAuctionConfigs = Object.entries(fledgeAuctionConfigs).map(([bidId, cfg]) => {
+ 
+      const fledgeAuctionConfigs = Object.entries(fledgeAuctionConfigsObj).map(([bidId, cfg]) => {
         return {
           bidId,
           config: Object.assign({
@@ -137,14 +151,15 @@ const CONVERTER = ortbConverter({
           }, cfg)
         }
       });
-      logInfo('Response with FLEDGE:', { bids, fledgeAuctionConfigs });
-      return {
-        bids,
+      const returnValue = {
+        bids: response.bids,
         fledgeAuctionConfigs,
       }
-    } */
+      _logInfo('Response with FLEDGE:', returnValue);
+      return returnValue
+    }
 
-    return response;
+    return response.bids;
   }
 });
 
@@ -181,9 +196,9 @@ export const spec = {
     // if (firstBidRequest.userIdAsEids) {
     //   deepSetValue(ortbRequest, 'user.ext.eids', firstBidRequest.userIdAsEids);
     // }
-    logInfo('bidderRequest:', bidderRequest)
+    _logInfo('bidderRequest:', bidderRequest)
     
-    logInfo('buildRequests: CONVERTER.toORTB:', deepClone(ortbRequest))
+    _logInfo('buildRequests: CONVERTER.toORTB:', deepClone(ortbRequest))
 
     if (bidderRequest.fledgeEnabled) {
       const fledgeConfig = config.getConfig('fledgeConfig') || {
@@ -224,7 +239,7 @@ export const spec = {
 
     // convert Native ORTB definition to old-style prebid native definition
     _validBidRequests = convertOrtbRequestToProprietaryNative(validBidRequests);
-    logInfo('convertOrtbRequestToProprietaryNative:', _validBidRequests)
+    _logInfo('convertOrtbRequestToProprietaryNative:', _validBidRequests)
     validBidRequests = _validBidRequests;
     
     const request = {
@@ -315,8 +330,8 @@ export const spec = {
     return bids;
   },
   interpretResponse: function (serverResponse, originalRequest) {
-    logWarn('originalRequest:', originalRequest)
-    logWarn('serverResponse:', serverResponse)
+    _logWarn('originalRequest:', originalRequest)
+    _logWarn('serverResponse:', serverResponse)
     if (!serverResponse.body) {
       serverResponse.body = {nbr: 0};
     } else if (isArray(serverResponse.body)) {
@@ -330,7 +345,7 @@ export const spec = {
       }
     }
     const ortbResponse = CONVERTER.fromORTB({response: serverResponse.body, request: originalRequest.data}).bids;
-    logInfo('interpretResponse bids:', ortbResponse)
+    _logWarn('interpretResponse bids:', ortbResponse)
     return ortbResponse
   }
 };
