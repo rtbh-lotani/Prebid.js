@@ -5,6 +5,7 @@ import {registerBidder} from '../src/adapters/bidderFactory.js';
 import {includes} from '../src/polyfill.js';
 import {convertOrtbRequestToProprietaryNative} from '../src/native.js';
 import {ortbConverter} from '../libraries/ortbConverter/converter.js';
+import {ORTB_MTYPES} from '../libraries/ortbConverter/processors/mediaType.js';
 import {config} from '../src/config.js';
 
 const BIDDER_CODE = 'rtbhouse';
@@ -41,6 +42,8 @@ export const OPENRTB = {
     },
   }
 };
+const ORTB_MTYPES_CODES = Object.entries(ORTB_MTYPES).reduce((acc, [key, value]) => { acc[value] = key; return acc}, {});
+
 function _logWarn(...args) {
   logInfo(...args)
 }
@@ -91,7 +94,20 @@ const CONVERTER = ortbConverter({
     // this substitutes interpretBannerBid / interpretNativeBid
     // check if there's mediaType
     // if not skip that bid
-    if(!('mediaType' in bid)) return;
+    // if(!('mtype' in bid)) return;
+    // or skip that bid if no bid.price
+    if(!('price' in bid)) return;
+    if (bid.adm.indexOf('{') === 0) {
+      // native bid, adding mtype
+      bid.mtype = ORTB_MTYPES_CODES[NATIVE]
+      _logInfo('ORTB_MTYPES_CODES', ORTB_MTYPES_CODES)
+      
+      // interpretedBid = interpretNativeBid(bid);
+      const native = JSON.parse(bid.adm).native;
+      bid.adm = native;
+      // IMPORTANT: there's something wrong with native bid response structure returned by the bidder
+      // SOLVED: we don't have to call interpretNativeBid. We only have to attach $.native object to the actual bid.adm
+    }
 
     const bidResponse = buildBidResponse(bid, context);
     _logWarn('in bidResponse for bid: buildBidResponse() returned', deepClone(bidResponse))
@@ -344,8 +360,8 @@ export const spec = {
         }]
       }
     }
-    const ortbResponse = CONVERTER.fromORTB({response: serverResponse.body, request: originalRequest.data}).bids;
-    _logWarn('interpretResponse bids:', ortbResponse)
+    const ortbResponse = CONVERTER.fromORTB({response: serverResponse.body, request: originalRequest.data})//.bids;
+    _logWarn('interpretResponse return value:', ortbResponse)
     return ortbResponse
   }
 };
@@ -368,11 +384,10 @@ function applyFloor(slot) {
 }
 
 function _mapImpression(bidRequest, bidderRequest) {
-  
   if(_isBannerBid(bidRequest)) return {banner: _mapBanner(bidRequest)}
   if(_isNativeBid(bidRequest)) return {native: _mapNative(bidRequest)}
-
 }
+
 /**
  * @param {object} slot Ad Unit Params by Prebid
  * @returns {object} Imp by OpenRTB 2.5 §3.2.4
@@ -521,9 +536,9 @@ function _mapNative(bidRequest) {
   if(_isNativeBid(bidRequest)) {
     mergeDeep(native, {
       request: {
-        assets: mapNativeAssets(bidRequest)
+        assets: mapNativeAssets(bidRequest),
       },
-      ver: '1.1'
+      ver: '1.2'
     })
   }
   return {...native}
@@ -677,36 +692,69 @@ function interpretNativeBid(serverBid) {
  */
 function interpretNativeAd(adm) {
   const native = JSON.parse(adm).native;
+  const EXAMPLE = {
+    "ver": "1.2",
+    "assets": [
+        {
+            "id": 0,
+            "title": {
+                "text": "Shop online bij Scapino"
+            }
+        },
+        {
+            "id": 1,
+            "data": {
+                "value": "Levi's heren hoodie € 39,00"
+            }
+        },
+        {
+            "id": 2,
+            "img": {
+                "url": "https://ams.creativecdn.com/images?id=9cdd110b58cfbeb5dc0009954b386bf6bc6d42e3&w=1200&h=628&o=1083943124&fid=PWSwu1fsEbK00nC07fch",
+                "w": 1200,
+                "h": 628
+            }
+        }
+    ],
+    "link": {
+        "url": "https://ams.creativecdn.com/clicks?id=20230908_75kIeJeYXl0mw9wY3h7s&tk=7gsPFGhVdn3ZR6hVMuuMjEuF5Z4eKAcex-CtHP4ekMG0sTLwNUhxOs8xTOGMkr6jAOdcdkr_lcGpFyEK7lRb1Zzk2IA8cidFxv8vXlRvw3wj9qc8A6STiHXx0CkVjrKl3IMewrIXxXxymBvJzX-K5KcJONX2RL70weOBEy3dwDcsn3DH5Ty5bNRT2lDcy_iZ1q8IseHrLiHU8yCa9t6x9sGJwji4VJX5duuu2BEPdsDsAn_nqYga0XkOsF6m5GXSMaE3CVf-UhZhr6vs2lz-QSMgQG_7uX-jg83FsxU0qe90r0-65SCHHfNofEjnxEbfGmFwB6RTQWQAU_8kElKo2O6LDAoI7v_C7-P3OTXPTrMT430BN-kPeqLXxYFpehymknD_f9R_lHlEfvwHKaxAxU5w5WiDBTwbWzy1W-pqVrJ98nZUvRbR3p_8HNXRuTCaApHcZXnxLu24QDen9YeBMuDMLylCJFq3AYKVa0EHun4uIHju5QO3VJAqBFHbKZgj6cYZoDX8WepmW7eUjsoCaBcoAnWdFY2BCgJDFbyLJD8AV_NnpblEOVY7o-Pa3lta"
+    },
+    "imptrackers": [
+        "https://ams.creativecdn.com/win-notify?tk=D-VYg-SHtI_o5i1x8IRyx5sqvEQ_fjQsAYnVP0zQQwkZo9yEwpzJp8wkCX4XRjzbTAQDzHlNQSrNytfSI3-Vw4Y0hj4eQRcQ3bTpv4gldIAGREh9akYE3kCP4tqHKGRwF3xemTws4n7CR3OyR-YPSF9dbeyO6dyWs7VK6bCNonkFuU-X-GEok8XEiizq0LV0B6hotxVfBwJ4jK9pXTPUZhwDSpSFAdmIOthqxsxno-Oow9qqN5ZsW-83wcVnNzIPhmNOknp0DLXS6lytF1tnc5dkEwc42FxYt4lroqpxDbBDOqL_qrBeKJuMFmsubuQNNnxM_E__E1iOfBrCgDdpWIRej2jzEozvlcWQbrxUvrSPo3qDLuK6LBkaVKpNE7KRRrxX5_lCryW0tlV_Jk9CWfRyu-yXFS2UG7NaevrFSzQCPBuT__OKD8KMTMJXzGRFxX-CWVxM2xj0Z9h16xnpH09W8zccTC71xSdzvlgZJDc4yoe6ecDlWVxsz5iw2tdfUyg5rNrWy6Ae3X2Wc7z5sAl6fVdCEOmo2t6jGrPBT-BbuPrmPoriD1iyYzaubmaE&wp=4.2370751591611105E-4&tdc=ams"
+    ]
+};
+
+  logWarn('native ad parsed:', native)
   const result = {
     clickUrl: encodeURI(native.link.url),
     impressionTrackers: native.imptrackers
   };
   native.assets.forEach(asset => {
     switch (asset.id) {
-      case OPENRTB.NATIVE.ASSET_ID.TITLE:
+      case OPENRTB.NATIVE.ASSET_ID.TITLE: // 1
         result.title = asset.title.text;
         break;
-      case OPENRTB.NATIVE.ASSET_ID.IMAGE:
+      case OPENRTB.NATIVE.ASSET_ID.IMAGE: // 2
         result.image = {
           url: encodeURI(asset.img.url),
           width: asset.img.w,
           height: asset.img.h
         };
         break;
-      case OPENRTB.NATIVE.ASSET_ID.ICON:
+      case OPENRTB.NATIVE.ASSET_ID.ICON: // 3
         result.icon = {
           url: encodeURI(asset.img.url),
           width: asset.img.w,
           height: asset.img.h
         };
         break;
-      case OPENRTB.NATIVE.ASSET_ID.BODY:
+      case OPENRTB.NATIVE.ASSET_ID.BODY: // 4
         result.body = asset.data.value;
         break;
-      case OPENRTB.NATIVE.ASSET_ID.SPONSORED:
+      case OPENRTB.NATIVE.ASSET_ID.SPONSORED: // 5
         result.sponsoredBy = asset.data.value;
         break;
-      case OPENRTB.NATIVE.ASSET_ID.CTA:
+      case OPENRTB.NATIVE.ASSET_ID.CTA: // 6
         result.cta = asset.data.value;
         break;
     }
