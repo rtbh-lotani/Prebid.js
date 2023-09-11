@@ -1,10 +1,9 @@
-import {deepAccess, isArray, logError, mergeDeep, deepSetValue} from '../src/utils.js';
+import {deepAccess, isArray, logError, mergeDeep, deepSetValue, logWarn, deepClone} from '../src/utils.js';
 import {getOrigin} from '../libraries/getOrigin/index.js';
 import {BANNER, NATIVE} from '../src/mediaTypes.js';
 import {registerBidder} from '../src/adapters/bidderFactory.js';
 import {includes} from '../src/polyfill.js';
 import {ortbConverter} from '../libraries/ortbConverter/converter.js';
-import {ORTB_MTYPES} from '../libraries/ortbConverter/processors/mediaType.js';
 import {config} from '../src/config.js';
 
 const BIDDER_CODE = 'rtbhouse';
@@ -42,9 +41,6 @@ export const OPENRTB = {
   }
 };
 
-// reverse map of ORTB_MTYPES
-const ORTB_MTYPES_CODES = Object.entries(ORTB_MTYPES).reduce((acc, [key, value]) => { acc[value] = key; return acc}, {});
-
 const converter = ortbConverter({     
   context: {
       netRevenue: true,
@@ -67,9 +63,8 @@ const converter = ortbConverter({
     if(!('price' in bid)) return;
     if (bid.adm.indexOf('{') === 0) {
       // native bid, adding mtype
-      bid.mtype = ORTB_MTYPES_CODES[NATIVE]
-      const native = JSON.parse(bid.adm).native;
-      bid.adm = native;
+      bid.mtype = 4; // ORTB native value
+      bid.adm = JSON.parse(bid.adm).native
     }
 
     const bidResponse = buildBidResponse(bid, context);
