@@ -59,6 +59,7 @@ const converter = ortbConverter({
     mergeDeep(imp, mapImpression(bidRequest, bidderRequest));
     if (!imp.bidfloor && bidRequest.params.bidfloor) {
       imp.bidfloor = parseFloat(bidRequest.params.bidfloor);
+      imp.bidfloorcur = DEFAULT_CURRENCY_ARR[0];
     }
     return imp;
   },
