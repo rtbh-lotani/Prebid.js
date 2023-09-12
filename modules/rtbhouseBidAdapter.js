@@ -64,10 +64,15 @@ const converter = ortbConverter({
     if (bid.adm.indexOf('{') === 0) {
       // native bid, adding mtype
       bid.mtype = 4; // ORTB native value
-      bid.adm = JSON.parse(bid.adm).native
+      const parsedBidAdm = JSON.parse(bid.adm);
+      if(parsedBidAdm.native) {
+        parsedBidAdm = parsedBidAdm.native;
+      }
+      bid.adm = parsedBidAdm;
     }
-
+    // logWarn('bid before convertion', bid)
     const bidResponse = buildBidResponse(bid, context);
+    // logWarn('bid after convertion', bidResponse)
     bidResponse.creativeId = bid.adid;
     
     if (bid.ext) mergeDeep(bidResponse.ext, bid.ext);
