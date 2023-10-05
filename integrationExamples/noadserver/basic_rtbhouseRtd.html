@@ -1,0 +1,136 @@
+<!--
+  This page runs an auction for 2 adunits, simply displaying the results
+  rather than sending targeting to an ad server.
+
+  Notes:
+
+  - this approach assumes that the adunit.code is the div name. There
+  are many other ways to match the adunit to the div.
+  - this approach won't work for refreshed adunits. For that scenario
+  you'll need to be more surgical about what's passed into the bidsbackhandler.
+  - there's not a separate failsafe timeout here. Since there's no call to
+  an ad server waiting impatiently, Prebid's the only ad game in town and its
+  timeout is sufficient.
+
+  How to run:
+  $ npm ci
+  $ gulp serve --modules="rtdModule,rtbhouseBidAdapter,rtbhousePubvertiserRtdProvider"
+  
+  Open web page:
+  http://localhost:9999/integrationExamples/noadserver/basic_rtbhouseRtd.html
+
+  Open dev tools and watch network traffic. Find 
+  tags.creativecdn.com request which should be a js file 
+  with the name of tagId param (default: vILIjpCOIV5w3n8BvlAk)
+  If your pubvertiser (contact us for details) is set for 
+  a specific domain and you run this module on your web page you should be able
+  to find additional requests: fledge-igmembership and topics-membership 
+  (works for Chrome supporting PA API)
+-->
+
+<html>
+
+<head>
+    <script async src="../../build/dev/prebid.js"></script>
+    <script>
+        var adUnits = [
+            {
+                code: 'test-div',
+                mediaTypes: {
+                    banner: {
+                        sizes: [[300, 250]]
+                    }
+                },
+                bids: [
+                    {
+                        bidder: 'rtbhouse',
+                        params: {
+                            region: 'prebid-eu',
+                            publisherId: 'PJ5DSJnJKcX4I9v0ZSWJ',
+                        }
+                    }
+                ]
+            },
+            {
+                code: 'test-div2',
+                mediaTypes: {
+                    banner: {
+                        sizes: [[728, 90]]
+                    }
+                },
+                bids: [
+                    {
+                        bidder: 'rtbhouse',
+                        params: {
+                            region: 'prebid-eu',
+                            publisherId: 'PJ5DSJnJKcX4I9v0ZSWJ',
+                        }
+                    }
+                ]
+            }
+        ];
+
+        var pbjs = pbjs || {};
+        pbjs.que = pbjs.que || [];
+    
+        pbjs.que.push(function () {
+            pbjs.addAdUnits(adUnits);
+
+            pbjs.setConfig({
+                debug: true,
+                realTimeData: {
+                    auctionDelay: 500,
+                    dataProviders: [{
+                        name: 'rtbhousePubvertiser',
+                        waitForIt: false,
+                        params: {
+                            tagId: "vILIjpCOIV5w3n8BvlAk", // pubvertiser-specific campaign ID
+                            region: 'eu'
+                        }
+                    }]
+                },
+            });
+
+            pbjs.requestBids({
+                timeout: 2000,
+                bidsBackHandler: renderAllAdUnits
+            });
+        });
+
+        // you could instead pass an array of adUnits
+        // to getHighestCpmBids() if desired
+        function renderAllAdUnits() {
+            var winners = pbjs.getHighestCpmBids();
+            for (var i = 0; i < winners.length; i++) {
+                renderOne(winners[i]);
+            }
+        }
+
+        function renderOne(winningBid) {
+            if (winningBid && winningBid.adId) {
+                var div = document.getElementById(winningBid.adUnitCode);
+                if (div) {
+                    let iframe = document.createElement('iframe');
+                    iframe.frameBorder = '0';
+                    iframe.marginWidth = '0';
+                    iframe.marginHeight = '0';
+                    iframe.scrolling = "no";
+                    div.appendChild(iframe);
+                    var iframeDoc = iframe.contentWindow.document;
+                    pbjs.renderAd(iframeDoc, winningBid.adId);
+                }
+            }
+
+        }
+    </script>
+</head>
+
+<body>
+    <h2>Ad Serverless Test Page</h2>
+
+    <div id='test-div'></div>
+    <br />
+    <div id='test-div2'></div>
+</body>
+
+</html>
