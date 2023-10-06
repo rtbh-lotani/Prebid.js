@@ -79,7 +79,8 @@
       "sirdataRtdProvider",
       "timeoutRtdProvider",
       "weboramaRtdProvider", 
-      "zeusPrimeRtdProvider"
+      "zeusPrimeRtdProvider",
+      "rtbhPARtdProvider"
     ],
     "fpdModule": [
       "validationFpdModule",
