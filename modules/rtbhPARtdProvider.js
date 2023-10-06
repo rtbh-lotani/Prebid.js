@@ -2,9 +2,9 @@ import {isStr, logError} from '../src/utils.js';
 import {submodule} from '../src/hook.js';
 import { loadExternalScript } from '../src/adloader.js';
 
-const MODULE_NAME = 'rtbhousePubvertiser';
+const MODULE_NAME = 'rtbhPA';
 const TAGDOMAIN = 'tags.creativecdn.com';
-const RTBH_EVENTS = 'rtbhEvents';
+export const RTBH_EVENTS = 'rtbhEvents';
 
 window[RTBH_EVENTS] = window[RTBH_EVENTS] || [];
 
@@ -23,7 +23,7 @@ function executePubvertiserTag(tagId, region) {
 }
 
 function init(rtdConfig) {
-  const { tagId, region = '' } = rtdConfig?.params;
+  const { tagId, region = '' } = rtdConfig?.params || {};
 
   if (!tagId || !isStr(tagId) || !isStr(region)) {
     logError(`${MODULE_NAME}: params.tagId and params.region should be strings`);
@@ -34,13 +34,13 @@ function init(rtdConfig) {
   return true;
 }
 
-const rtbhousePubvertiserRtdModule = {
+export const subModuleObj = {
   name: MODULE_NAME,
   init: init
 };
 
 function registerSubModule() {
-  submodule('realTimeData', rtbhousePubvertiserRtdModule);
+  submodule('realTimeData', subModuleObj);
 }
 
 registerSubModule();
