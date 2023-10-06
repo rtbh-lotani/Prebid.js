@@ -2,14 +2,12 @@ import { subModuleObj, RTBH_EVENTS } from '../../../modules/rtbhPARtdProvider.js
 import { loadExternalScript } from '../../../src/adloader.js';
 import { assert } from 'chai';
 
-const config = {
-  dataProviders: [{
-    'name': 'rtbhPA',
-    'params': {
-      'tagId': 'publisher_id',
-      'region': 'region'
-    }
-  }]
+const TEST_CONFIG = {
+  'name': 'rtbhPA',
+  'params': {
+    'tagId': 'publisher_id',
+    'region': 'region'
+  }
 };
 
 describe('rtbhPA realtime module', function () {
@@ -41,6 +39,7 @@ describe('rtbhPA realtime module', function () {
   it('init should return true when config.params: tagId is non-empty string and region is undefined', function () {
     assert.isTrue(subModuleObj.init({ params: { tagId: 'x' } }));
     assert.isTrue(loadExternalScript.called);
+    assert.strictEqual(loadExternalScript.args[0][0], 'https://tags.creativecdn.com/x.js');
   });
 
   it('init should return true when config.params: tagId is non-empty string and region is empty string', function () {
@@ -50,13 +49,14 @@ describe('rtbhPA realtime module', function () {
 
   describe('init called with proper params', function () {
     it('init should return true when config.params: tagId and region are passed and are string typed', function () {
-      assert.isTrue(subModuleObj.init(config.dataProviders[0]));
+      assert.isTrue(subModuleObj.init(TEST_CONFIG));
       assert.isTrue(loadExternalScript.called);
+      assert.strictEqual(loadExternalScript.args[0][0], `https://tags.creativecdn.com/publisher_id.js`);
     });
 
     describe('global window.${RTBH_EVENTS} object analysis', function () {
       beforeEach(function () {
-        subModuleObj.init(config.dataProviders[0]);
+        subModuleObj.init(TEST_CONFIG);
       });
 
       it(`${RTBH_EVENTS} key should exist in window`, function () {
@@ -87,11 +87,11 @@ describe('rtbhPA realtime module', function () {
         assert.containsAllKeys(global.window[RTBH_EVENTS][0], ['eventType', 'value', 'dc']);
       });
 
-      it(`window.${RTBH_EVENTS} first element should be deeply equal to {eventType: 'init', value: '${config.dataProviders[0].params.tagId}', dc: '${config.dataProviders[0].params.region}'}`, function () {
+      it(`window.${RTBH_EVENTS} first element should be deeply equal to {eventType: 'init', value: 'publisher_id', dc: 'region'}`, function () {
         assert.deepEqual(global.window[RTBH_EVENTS][0], {
           eventType: 'init',
-          value: config.dataProviders[0].params.tagId,
-          dc: config.dataProviders[0].params.region
+          value: 'publisher_id',
+          dc: 'region'
         });
       });
 
