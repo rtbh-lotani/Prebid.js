@@ -6,25 +6,25 @@ Maintainer: integrations@primeaudience.com
 
 ## Description
 
-This module is intended to be used by Prime Audience (https://primeaudience.com) partners and puts dedicated advertiser tagging script onto publisher's web page.
+This module is intended to be used by Prime Audience (https://primeaudience.com) partners and puts customized tagging script onto publisher's web page.
 
 ## Integration
 
-Build the RTB House Prime Audience Realtime Data Module into the Prebid.js package with:
+Build the RTB House Prime Audience RTD Module along with your bid adapter and other modules into your prebid.js build with:
 
 ```
-gulp build --modules=rtbhPARtdProvider,rtdModule
+gulp build --modules="rtbhPARtdProvider,rtdModule,..."
 ```
 
 ## Configuration
 
-This module is configured as part of the `realTimeData.dataProviders` object.
+This module is configured as part of the `realTimeData.dataProviders` object. See https://docs.prebid.org/dev-docs/publisher-api-reference/setConfig.html#real-time-data-modules for details.
 
 |    Name    |  Scope   | Description                  |     Example     |  Type  |
 |:----------:|:--------:|:-----------------------------|:---------------:|:------:|
 |    `name`    | required | Real time data module name   | `'rtbhPA'` | `string` |
 |   `params`   | required |                              |                 | `Object` |
-| `params.tagId` | required | RTB House to share advertiser ID, [Reach out to us](https://www.primeaudience.com/#contact) to know more! |   `'dedicatedAdvertiserID'`    | `string` |
+| `params.tagId` | required | Your Prime Audience customer ID, [Reach out to us](https://www.primeaudience.com/#contact) to know more! |   `'customerID'`    | `string` |
 | `params.region`     | optional | Publisher related geo region. Defaults to `'ams'`. Other values: `'us', 'asia'` | `'us'`   | `string` |
 
 ### Example
@@ -36,11 +36,11 @@ pbjs.setConfig({
             {
                 "name": "rtbhPA",
                 "params": {
-                    "tagId": "dedicatedAdvertiserID",
+                    "tagId": "customerID",
                     "region": "us",
                 }
             }
         ]
     }
-})
+});
 ```
