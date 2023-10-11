@@ -28,7 +28,7 @@ const _approvedLoadExternalJSList = [
   'a1Media',
   'geoedge',
   'qortex',
-  'rtbhousePubvertiser'
+  'rtbhPA'
 ]
 
 /**
