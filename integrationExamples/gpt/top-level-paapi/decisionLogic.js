@@ -43,8 +43,10 @@ function scoreAd(
       result.rejectReason = 'bid-below-auction-floor';
     }
   }
-  console.log('Result:', result);
   console.groupEnd();
+  console.log(
+    `%cBuyer: ${browserSignals.interestGroupOwner}`, 'font-weight:bold;border: 1px solid black;color:black',
+    `Result:`, result);
   return result;
 }
 

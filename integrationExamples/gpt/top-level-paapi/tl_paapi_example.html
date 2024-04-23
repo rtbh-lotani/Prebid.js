@@ -15,6 +15,21 @@
     <script async src="https://securepubads.g.doubleclick.net/tag/js/gpt.js"></script>
 
     <script>
+        var openxBidValue = Number(document.location.search.replace(/.*[&?]openxbid=([\d.]+)(?:&.*|$)/, '$1'));
+        var pageFloorValue = Number(document.location.search.replace(/.*[&?]floor=([\d.]+)(?:&.*|$)/, '$1'));
+        // console.log('openxBidValue=', openxBidValue)
+        openxBidValue ||= .15;
+        pageFloorValue ||= 0.01;
+        // console.log('openxBidValue=', openxBidValue)
+        var rtbhouseBidValue = Number(document.location.search.replace(/.*[&?]rtbhousebid=([\d.]+)(?:&.*|$)/, '$1'));
+        rtbhouseBidValue ||= .15
+        
+        // var openxBidValue = 0.10 + 0.05*Math.random();
+        var bidders = [];
+        document.location.search.replaceAll(/[&?]bidders=([\w,]+)/g, (match, p1) => { bidders.push(p1) ; return  });
+        // var bidders = document.location.search.replace(/.*[&?]bidders=([\w,]+)/, '$1').split(',');
+        // if(!bidders.length) bidders = ['openx', 'rtbhouse'];
+        // console.log('Found bidders:', bidders)
         var FAILSAFE_TIMEOUT = 3300;
         var PREBID_TIMEOUT = 3000;
         var adUnits = [{
@@ -39,8 +54,15 @@
                             delDomain: 'sademo-d.openx.net'
                         }
                     },
+                    {
+                        bidder: 'rtbhouse',
+                        params: {
+                            region: 'prebid-eu',
+                            publisherId: 'FLEDGE-test'
+                        }
+                    }
 
-                ],
+                ].filter(b => bidders.includes(b.bidder)),
             }
             ]
         ;
@@ -55,6 +77,21 @@
         });
 
         pbjs.que.push(function () {
+            pbjs.setBidderConfig({
+                bidders: ["rtbhouse"],
+                config: {
+                    fledgeEnabled: true,
+                    fledgeConfig: {
+                        seller: 'https://fledge-ssp.creativecdn.com',
+                        decisionLogicUrl: 'https://fledge-ssp.creativecdn.com/component-seller-prebid.js',
+                        // 'seller': 'https://privacysandbox.openx.net',
+                        // 'decisionLogicUrl': 'https://privacysandbox.openx.net/fledge/decision-logic-component.js',
+                                        
+                        interestGroupBuyers: ['https://f.creativecdn.com'],
+                        sellerTimeout: 100
+                    }
+                }
+            });
             pbjs.setConfig({
                 debug: true,
                 paapi: {
@@ -71,7 +108,8 @@
                                 bidder: 'openx',
                             },
                             then: {
-                                cpm: 0.1
+                                cpm: pageFloorValue,
+                                currency: 'USD'
                             },
                             paapi() {
                                 return [
@@ -90,14 +128,53 @@
                                         ],
                                         'perBuyerSignals': {
                                             'https://privacysandbox.openx.net': {
-                                                'bid': 1.5
+                                                'bid': openxBidValue
+                                                // 'bid': 0.15
                                             }
                                         },
                                         'sellerCurrency': 'USD'
                                     }
                                 ];
                             }
-                        }
+                        },
+                        // {
+                        //     when: {
+                        //         bidder: 'rtbhouse',
+                        //     },
+                        //     then: {
+                        //         cpm: pageFloorValue,
+                        //         currency: 'USD'
+                        //     },
+                        //     paapi() {
+                        //         return [
+                        //             {
+                        //                 'seller': 'https://fledge-ssp.creativecdn.com',
+                        //                 'decisionLogicURL': 'https://fledge-ssp.creativecdn.com/component-seller-prebid.js',
+                        //                 // 'seller': 'https://privacysandbox.openx.net',
+                        //                 // 'decisionLogicURL': 'https://privacysandbox.openx.net/fledge/decision-logic-component.js',
+                        //                 'sellerSignals': {
+                        //                     'floor': 0.01,
+                        //                     'currency': 'USD',
+                        //                     // 'currency': 'EUR',
+                        //                     // 'auctionTimestamp': new Date().getTime(),
+                        //                     'region': 'prebid-eu',
+                        //                     'publisherId': 'FLEDGE-test'
+                        //                 },
+                        //                 'interestGroupBuyers': [
+                        //                     'https://f.creativecdn.com'
+                        //                 ],
+                        //                 'perBuyerSignals': {
+                        //                     'https://f.creativecdn.com': {
+                        //                         // 'bid': 2
+                        //                         'bid': rtbhouseBidValue
+                        //                     }
+                        //                 },
+                        //                 'sellerCurrency': 'USD'
+                        //                 // 'sellerCurrency': 'EUR'
+                        //             }
+                        //         ];
+                        //     }
+                        // }
                     ]
                 },
             });
@@ -110,12 +187,17 @@
         });
 
         function raa() {
+            const conf = pbjs.getPAAPIConfig();
+            console.log('PAAPI config:', conf)
             return Promise.all(
-                Object.entries(pbjs.getPAAPIConfig())
+                Object.entries(conf)
                     .map(([adUnitCode, auctionConfig]) => {
+
                         return navigator.runAdAuction({
                             seller: window.location.origin,
                             decisionLogicURL: new URL('decisionLogic.js', window.location).toString(),
+                            // seller: 'https://decisionlogic-b20v--3010--7dbe22a9.local-credentialless.webcontainer.io',
+                            // decisionLogicURL: new URL('https://decisionlogic-b20v--3010--7dbe22a9.local-credentialless.webcontainer.io/decisionLogic.js', window.location).toString(),
                             resolveToConfig: false,
                             ...auctionConfig
                         }).then(urn => {
@@ -171,10 +253,57 @@
 <p>Start local server with:</p>
 <code>gulp serve-fast --https</code>
 <p>Chrome flags:</p>
-<code>--enable-features=CookieDeprecationFacilitatedTesting:label/treatment_1.2/force_eligible/true
-    --privacy-sandbox-enrollment-overrides=https://localhost:9999</code>
-<p>Join interest group at <a href="https://privacysandbox.openx.net/fledge/advertiser">https://privacysandbox.openx.net/fledge/advertiser</a>
+<script>
+    var chromeOptions = {
+        'enable-features': 'CookieDeprecationFacilitatedTesting:label/treatment_1.2/force_eligible/true',
+        'privacy-sandbox-enrollment-overrides': document.location.origin
+    }
+    document.write('<code>' +
+    Object.entries(chromeOptions).map(([key, value]) => `--${key}=${value}`).join(' ')
+    + '</code>');
+</script>
+<!-- <code>--enable-features=CookieDeprecationFacilitatedTesting:label/treatment_1.2/force_eligible/true
+    --privacy-sandbox-enrollment-overrides=https://localhost:9999</code> -->
+<p>Join OpenX interest group at <a href="https://privacysandbox.openx.net/fledge/advertiser">https://privacysandbox.openx.net/fledge/advertiser</a>
 </p>
+<p>Join RTB House interest group at <a href="https://rtbfashion.net">https://rtbfashion.net</a>
+</p>
+<form method="get" action="">
+    <fieldset>
+    <label><input type="checkbox" name="bidders" value="openx" onchange="control(this,'openxbid')"> OpenX</label>
+    <span id="openxbid">
+        &RightArrow; OpenX mocked bid value: <input type="text" name="openxbid">
+    </span>
+    <br>
+    <!-- <label><input type="checkbox" name="bidders" value="rtbhouse" onchange="control(this,'rtbhousebid')"> RTB House</label> -->
+    <label><input type="checkbox" name="bidders" value="rtbhouse"> RTB House</label>
+    <!-- <span id="rtbhousebid">
+        &RightArrow; RTB House mocked bid value: <input type="text" name="rtbhousebid">
+    </span> -->
+    <br>
+    <label id="floor">Page floor value: <input type="text" name="floor"></label>
+    <br>
+    <input type="submit" value="Update">
+    </fieldset>
+    <p>
+        RTB House uses a true dynamic bid evaluating. To find out what was the recent bid value, filter the console by 
+        <code>Buyer: https://f.creativecdn.com</code> phrase and find the <code>Context: { bid }</code> or 
+        <code>Result: { desirability }</code>
+    </p>
+</form>
+<script>
+    [...document.querySelectorAll('input[name=bidders]')].forEach(c => {
+        c.checked = bidders.includes(c.value);
+        c.onchange && c.onchange();
+    });
+    document.querySelector('input[name=openxbid]').value = openxBidValue || '';
+    // document.querySelector('input[name=rtbhousebid]').value = rtbhouseBidValue || '';
+    document.querySelector('input[name=floor]').value = pageFloorValue || '';
+    function control(checkbox, inputName) {
+        checkbox.form[inputName].disabled = !checkbox.checked;
+        document.getElementById(inputName).style.display = checkbox.checked ? '' : 'none';
+    }
+</script>
 <h5>Div-1</h5>
 <div id='div-1' style='min-width: 300px; min-height: 250px;'>
     <script type='text/javascript'>

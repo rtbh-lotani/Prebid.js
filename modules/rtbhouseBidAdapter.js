@@ -175,7 +175,7 @@ export const spec = {
       bids = this.interpretOrtbResponse({ body: responseBody.seatbid[0]?.bid }, originalRequest);
 
       const seller = responseBody.ext.seller;
-      const decisionLogicUrl = responseBody.ext.decisionLogicUrl;
+      const decisionLogicUrl = responseBody.ext.decisionLogicUrl || responseBody.ext.decisionLogicURL;
       const sellerTimeout = 'sellerTimeout' in responseBody.ext ? { sellerTimeout: responseBody.ext.sellerTimeout } : {};
       responseBody.ext.igbid.forEach((igbid) => {
         const perBuyerSignals = {};
@@ -187,7 +187,8 @@ export const spec = {
           {
             seller,
             decisionLogicUrl,
-            interestGroupBuyers: [...fledgeInterestGroupBuyers, ...Object.keys(perBuyerSignals)],
+            decisionLogicURL: decisionLogicUrl,
+            interestGroupBuyers: [...new Set([...fledgeInterestGroupBuyers, ...Object.keys(perBuyerSignals)])],
             perBuyerSignals,
           },
           sellerTimeout
