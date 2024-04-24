@@ -194,10 +194,10 @@
                     .map(([adUnitCode, auctionConfig]) => {
 
                         return navigator.runAdAuction({
-                            seller: window.location.origin,
-                            decisionLogicURL: new URL('decisionLogic.js', window.location).toString(),
-                            // seller: 'https://decisionlogic-b20v--3010--7dbe22a9.local-credentialless.webcontainer.io',
-                            // decisionLogicURL: new URL('https://decisionlogic-b20v--3010--7dbe22a9.local-credentialless.webcontainer.io/decisionLogic.js', window.location).toString(),
+                            // seller: window.location.origin,
+                            // decisionLogicURL: new URL('decisionLogic.js', window.location).toString(),
+                            seller: 'https://sphenoid-stripe-snarl.glitch.me',
+                            decisionLogicURL: 'https://sphenoid-stripe-snarl.glitch.me/ssp/decisionLogic.js',
                             resolveToConfig: false,
                             ...auctionConfig
                         }).then(urn => {
