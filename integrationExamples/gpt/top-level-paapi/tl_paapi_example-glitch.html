@@ -1,12 +1,6 @@
 <html>
 <head>
-    <style>
-        .distance {
-            padding-left: 3em;;
-        }
-        
-    </style>
-    <script async src="../../../../build/dev/prebid.js"></script>
+    <script async src="./prebid.js"></script>
     <script>
         // intercept navigator.runAdAuction and print parameters to console
         (() => {
@@ -24,20 +18,16 @@
         var openxBidValue = Number(document.location.search.replace(/.*[&?]openxbid=([\d.]+)(?:&.*|$)/, '$1'));
         var pageFloorValue = Number(document.location.search.replace(/.*[&?]floor=([\d.]+)(?:&.*|$)/, '$1'));
         // console.log('openxBidValue=', openxBidValue)
-        openxBidValue ||= 0;//.15;
+        openxBidValue ||= .15;
+        
         pageFloorValue ||= 0.01;
         // console.log('openxBidValue=', openxBidValue)
         var rtbhouseBidValue = Number(document.location.search.replace(/.*[&?]rtbhousebid=([\d.]+)(?:&.*|$)/, '$1'));
-        rtbhouseBidValue ||= 0;//.15
+        rtbhouseBidValue ||= .15
         
         // var openxBidValue = 0.10 + 0.05*Math.random();
         var bidders = [];
         document.location.search.replaceAll(/[&?]bidders=([\w,]+)/g, (match, p1) => { bidders.push(p1) ; return  });
-
-        const appendOpenXAsBuyer = document.location.search.match(/.*[&?]openxasbuyer=yes(?:&.*|$)/);
-        const appendRTBHAsBuyer = document.location.search.match(/.*[&?]rtbhasbuyer=yes(?:&.*|$)/);
-        const openxAsSeller = document.location.search.match(/.*[&?]openxasseller=yes(?:&.*|$)/);
-
         // var bidders = document.location.search.replace(/.*[&?]bidders=([\w,]+)/, '$1').split(',');
         // if(!bidders.length) bidders = ['openx', 'rtbhouse'];
         // console.log('Found bidders:', bidders)
@@ -88,58 +78,23 @@
         });
 
         pbjs.que.push(function () {
-            const sellerForRTBH = ['origin', 'openx'][openxAsSeller ? 1 : 0];
-            const openxBidModififer = .95;
-            const bidModifier = sellerForRTBH == 'openx' ? openxBidModififer : 1;
             pbjs.setBidderConfig({
                 bidders: ["rtbhouse"],
                 config: {
                     fledgeEnabled: true,
                     fledgeConfig: {
-                        seller: {
-                            origin: 'https://fledge-ssp.creativecdn.com', 
-                            openx: 'https://privacysandbox.openx.net'
-                        }[sellerForRTBH],
-                        decisionLogicUrl: {
-                            origin: 'https://fledge-ssp.creativecdn.com/component-seller-prebid.js',
-                            openx: 'https://privacysandbox.openx.net/fledge/decision-logic-component.js'
-                        }[sellerForRTBH],
+                        seller: 'https://fledge-ssp.creativecdn.com',
+                        decisionLogicUrl: 'https://fledge-ssp.creativecdn.com/component-seller-prebid.js',
+                        // 'seller': 'https://privacysandbox.openx.net',
+                        // 'decisionLogicUrl': 'https://privacysandbox.openx.net/fledge/decision-logic-component.js',
                                         
-                        // interestGroupBuyers: ['https://f.creativecdn.com'],// 'https://privacysandbox.openx.net'],
-                        interestGroupBuyers: [
-                            'https://f.creativecdn.com', 
-                            ...(appendOpenXAsBuyer && openxBidValue > 0 ? ['https://privacysandbox.openx.net']: [])
-                        ],
-                        sellerTimeout: 100,
-                        'sellerSignals': {
-                            'floor': 0.01,
-                            'currency': 'USD',
-                            'auctionTimestamp': new Date().getTime(),
-                            region: 'prebid-eu',
-                            publisherId: 'FLEDGE-test'
-                        },
-                        'perBuyerSignals': {
-                            ...(appendOpenXAsBuyer && openxBidValue > 0 ? {'https://privacysandbox.openx.net': {
-                                'bid': openxBidValue/bidModifier
-                            }} : {}),
-                            ...(rtbhouseBidValue > 0 ? {'https://f.creativecdn.com': {
-                                'bid': rtbhouseBidValue/bidModifier
-                            }} : {})
-                        },
-                        'sellerCurrency': 'USD'
+                        interestGroupBuyers: ['https://f.creativecdn.com'],
+                        sellerTimeout: 100
                     }
                 }
             });
             pbjs.setConfig({
                 debug: true,
-                topics: {
-                    enabled: false,
-                    bidders: [],
-                    maxTopicCaller: -1
-                },
-                firstPartyData: {
-                    uaHints: []
-                },
                 paapi: {
                     enabled: true,
                     gpt: {
@@ -170,16 +125,13 @@
                                             'adUnitId': '538703464'
                                         },
                                         'interestGroupBuyers': [
-                                            'https://privacysandbox.openx.net',
-                                            //...(appendRTBHAsBuyer  ? ['https://f.creativecdn.com'] : [])
+                                            'https://privacysandbox.openx.net'
                                         ],
                                         'perBuyerSignals': {
-                                            ...(openxBidValue > 0 ? {'https://privacysandbox.openx.net': {
-                                                'bid': openxBidValue/openxBidModififer
-                                            }} : {}),
-                                            // ...(appendRTBHAsBuyer  ? {'https://f.creativecdn.com': {
-                                            //     'bid': rtbhouseBidValue/openxBidModififer
-                                            // }} : {}),
+                                            'https://privacysandbox.openx.net': {
+                                                'bid': openxBidValue/.95
+                                                // 'bid': 0.15
+                                            }
                                         },
                                         'sellerCurrency': 'USD'
                                     }
@@ -244,7 +196,7 @@
 
                         return navigator.runAdAuction({
                             seller: window.location.origin,
-                            decisionLogicURL: new URL('decisionLogic.js', window.location).toString(),
+                            decisionLogicURL: new URL('ssp/decisionLogic.js', window.location).toString(),
                             // seller: 'https://sphenoid-stripe-snarl.glitch.me',
                             // decisionLogicURL: 'https://sphenoid-stripe-snarl.glitch.me/ssp/decisionLogic.js',
                             resolveToConfig: false,
@@ -299,9 +251,9 @@
 
 <body>
 <h2>Standalone PAAPI Prebid.js Example</h2>
-<p>Start local server with:</p>
-<code>gulp serve-fast --https</code>
-<p>Chrome flags:</p>
+<!-- <p>Start local server with:</p>
+<code>gulp serve-fast --https</code> -->
+<p>Run this page with Chrome flags:</p>
 <script>
     var chromeOptions = {
         'enable-features': 'CookieDeprecationFacilitatedTesting:label/treatment_1.2/force_eligible/true',
@@ -319,26 +271,19 @@
 </p>
 <form method="get" action="">
     <fieldset>
-    <label><input type="checkbox" name="bidders" value="openx" onchange="control(this,'openxbid')">Enable OpenX bidder</label>
-    <span id="openxbid" class="distance">
-        <!-- <label id="rtbhasbuyer">Append RTB House as buyer: <input type="checkbox" name="rtbhasbuyer" value="yes"></label> -->
+    <label><input type="checkbox" name="bidders" value="openx" onchange="control(this,'openxbid')"> OpenX</label>
+    <span id="openxbid">
+        &RightArrow; OpenX mocked bid value: <input type="text" name="openxbid">
     </span>
     <br>
-    &RightArrow; OpenX mocked bid value: <input type="text" name="openxbid">
-    <hr>
-    <label><input type="checkbox" name="bidders" value="rtbhouse" onchange="control(this,'rtbhousebid')">Enable RTB House bidder</label>
-    <!-- <label><input type="checkbox" name="bidders" value="rtbhouse"> RTB House</label> -->
-    <div id="rtbhousebid" class="distance">
-        <label id="openxasbuyer">Append OpenX as buyer: <input type="checkbox" name="openxasbuyer" value="yes"></label>
-        <br>
-        
-        <label id="openxasseller">Use OpenX's decision logic (extended logging): <input type="checkbox" name="openxasseller" value="yes"></label>
-    </div>
+    <!-- <label><input type="checkbox" name="bidders" value="rtbhouse" onchange="control(this,'rtbhousebid')"> RTB House</label> -->
+    <label><input type="checkbox" name="bidders" value="rtbhouse"> RTB House</label>
+    <!-- <span id="rtbhousebid">
+        &RightArrow; RTB House mocked bid value: <input type="text" name="rtbhousebid">
+    </span> -->
     <br>
-    &RightArrow; RTB House mocked bid value: <input type="text" name="rtbhousebid">
-    <hr>
     <label id="floor">Page floor value: <input type="text" name="floor"></label>
-    <hr>
+    <br>
     <input type="submit" value="Update">
     </fieldset>
     <p>
@@ -346,6 +291,18 @@
         <code>Buyer: https://f.creativecdn.com</code> phrase and find the <code>Context: { bid }</code> or 
         <code>Result: { desirability }</code>
     </p>
+  <p>
+  Then play around with different OpenX bid values and try to overbid or underbid RTB House bids.
+  </p>
+  <p>
+    You may also modify the bid floor value. If the value is greater than OpenX bid then you'll get a message
+    from decisionLogic.js (the top level DL file), eg: 
+    <code>Bid (0.15) lower than contextual winner/floor (0.2). Rejecting bid. </code>
+  </p><p>
+    No message will be shown for RTB House bid which value is less than floor value but this can be noticed
+    in the Chrome Dev Tools under Application/Interest groups: there'll be no bid events for RTB House IGs 
+    (only loaded events exist).
+  </p>
 </form>
 <script>
     [...document.querySelectorAll('input[name=bidders]')].forEach(c => {
@@ -353,19 +310,14 @@
         c.onchange && c.onchange();
     });
     document.querySelector('input[name=openxbid]').value = openxBidValue || '';
-    document.querySelector('input[name=openxasbuyer]').checked = appendOpenXAsBuyer;
-    document.querySelector('input[name=openxasseller]').checked = openxAsSeller;
-    document.querySelector('input[name=rtbhousebid]').value = rtbhouseBidValue || '';
-    // document.querySelector('input[name=rtbhasbuyer]').checked = appendRTBHAsBuyer;
+    // document.querySelector('input[name=rtbhousebid]').value = rtbhouseBidValue || '';
     document.querySelector('input[name=floor]').value = pageFloorValue || '';
     function control(checkbox, inputName) {
-        // checkbox.form[inputName].disabled = !checkbox.checked;
-        var span = document.getElementById(inputName);
-        [...span.querySelectorAll('input')].forEach(input => input.disabled = !checkbox.checked)
-        span.style.display = checkbox.checked ? '' : 'none';
+        checkbox.form[inputName].disabled = !checkbox.checked;
+        document.getElementById(inputName).style.display = checkbox.checked ? '' : 'none';
     }
 </script>
-<h5>Div-1</h5>
+<h5>The ad goes here:</h5>
 <div id='div-1' style='min-width: 300px; min-height: 250px;'>
     <script type='text/javascript'>
         googletag.cmd.push(function () {
