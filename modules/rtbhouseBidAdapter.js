@@ -115,10 +115,11 @@ export const spec = {
     let computedEndpointUrl = ENDPOINT_URL;
 
     if (bidderRequest.fledgeEnabled) {
-      const fledgeConfig = config.getConfig('fledgeConfig') || {
+      const fledgeConfig = {
         seller: FLEDGE_SELLER_URL,
         decisionLogicUrl: FLEDGE_DECISION_LOGIC_URL,
-        sellerTimeout: 500
+        sellerTimeout: 500,
+        ...config.getConfig('fledgeConfig')
       };
       mergeDeep(request, { ext: { fledge_config: fledgeConfig } });
       computedEndpointUrl = FLEDGE_ENDPOINT_URL;
@@ -165,7 +166,6 @@ export const spec = {
   interpretResponse: function (serverResponse, originalRequest) {
     let bids;
 
-    const fledgeInterestGroupBuyers = config.getConfig('fledgeConfig.interestGroupBuyers') || [];
     const responseBody = serverResponse.body;
     let fledgeAuctionConfigs = null;
 
@@ -174,24 +174,31 @@ export const spec = {
       // mimic the original response ([{},...])
       bids = this.interpretOrtbResponse({ body: responseBody.seatbid[0]?.bid }, originalRequest);
 
-      const seller = responseBody.ext.seller;
-      const decisionLogicUrl = responseBody.ext.decisionLogicUrl || responseBody.ext.decisionLogicURL;
-      const sellerTimeout = 'sellerTimeout' in responseBody.ext ? { sellerTimeout: responseBody.ext.sellerTimeout } : {};
+      const fledgeInterestGroupBuyers = config.getConfig('fledgeConfig.interestGroupBuyers') || [];
+      const decisionLogicUrl = config.getConfig('fledgeConfig.decisionLogicUrl') 
+        || config.getConfig('fledgeConfig.decisionLogicURL') || FLEDGE_DECISION_LOGIC_URL;
+      const seller = config.getConfig('fledgeConfig.seller') || FLEDGE_SELLER_URL;
+      
+      const fledgeConfig = {
+        seller,
+        decisionLogicUrl,
+        decisionLogicURL: decisionLogicUrl,
+        sellerTimeout: 500,
+        interestGroupBuyers: [],
+      };
+      mergeDeep(fledgeConfig, config.getConfig('fledgeConfig'));
       responseBody.ext.igbid.forEach((igbid) => {
-        const perBuyerSignals = {};
+        const perBuyerSignals = {...fledgeConfig.perBuyerSignals};
         igbid.igbuyer.forEach(buyerItem => {
           perBuyerSignals[buyerItem.igdomain] = buyerItem.buyersignal
         });
         fledgeAuctionConfigs = fledgeAuctionConfigs || {};
         fledgeAuctionConfigs[igbid.impid] = mergeDeep(
+          Object.assign({}, fledgeConfig), 
           {
-            seller,
-            decisionLogicUrl,
-            decisionLogicURL: decisionLogicUrl,
             interestGroupBuyers: [...new Set([...fledgeInterestGroupBuyers, ...Object.keys(perBuyerSignals)])],
             perBuyerSignals,
-          },
-          sellerTimeout
+          }
         );
       });
     } else {
