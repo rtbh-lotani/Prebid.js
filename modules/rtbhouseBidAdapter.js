@@ -1,6 +1,6 @@
 import {deepAccess, deepClone, isArray, logError, logInfo, mergeDeep, isEmpty, isPlainObject, isNumber, isStr} from '../src/utils.js';
 import {getOrigin} from '../libraries/getOrigin/index.js';
-import {BANNER, NATIVE} from '../src/mediaTypes.js';
+import {BANNER, NATIVE, VIDEO} from '../src/mediaTypes.js';
 import {registerBidder} from '../src/adapters/bidderFactory.js';
 import {includes} from '../src/polyfill.js';
 import {convertOrtbRequestToProprietaryNative} from '../src/native.js';
@@ -14,7 +14,7 @@ const FLEDGE_SELLER_URL = 'https://fledge-ssp.creativecdn.com';
 const FLEDGE_DECISION_LOGIC_URL = 'https://fledge-ssp.creativecdn.com/component-seller-prebid.js';
 
 const DEFAULT_CURRENCY_ARR = ['USD']; // NOTE - USD is the only supported currency right now; Hardcoded for bids
-const SUPPORTED_MEDIA_TYPES = [BANNER, NATIVE];
+const SUPPORTED_MEDIA_TYPES = [BANNER, NATIVE, VIDEO];
 const TTL = 55;
 const GVLID = 16;
 
@@ -22,6 +22,45 @@ const DSA_ATTRIBUTES = [
   { name: 'dsarequired', 'min': 0, 'max': 3 },
   { name: 'pubrender', 'min': 0, 'max': 2 },
   { name: 'datatopub', 'min': 0, 'max': 2 }
+];
+
+const VIDEO_PARAMS = [
+  'mimes',
+  'minduration',
+  'maxduration',
+  'startdelay',
+  'maxseq',
+  'poddur',
+  'protocols',
+  'w',
+  'h',
+  'podid',
+  'podseq',
+  'rqddurs',
+  'placement',
+  'plcmt',
+  'linearity',
+  'skip',
+  'skipmin',
+  'skipafter',
+  'sequence',
+  'slotinpod',
+  'mincpmpersec',
+  'battr',
+  'maxextended',
+  'minbitrate',
+  'maxbitrate',
+  'boxingallowed',
+  'playbackmethod',
+  'playbackend',
+  'delivery',
+  'pos',
+  'companionad',
+  'api',
+  'companiontype',
+  'poddedupe',
+  'durfloors',
+  'ext',
 ];
 
 // Codes defined by OpenRTB Native Ads 1.1 specification
@@ -147,6 +186,8 @@ export const spec = {
       // try...catch would be risky cause JSON.parse throws SyntaxError
       if (serverBid.adm.indexOf('{') === 0) {
         interpretedBid = interpretNativeBid(serverBid);
+      } else if (serverBid.mtype === 2) {
+        interpretedBid = interpretVideoBid(serverBid);
       } else {
         interpretedBid = interpretBannerBid(serverBid);
       }
@@ -242,6 +283,7 @@ function mapImpression(slot, bidderRequest) {
     id: slot.bidId,
     banner: mapBanner(slot),
     native: mapNative(slot),
+    video: mapVideo(slot),
     tagid: slot.adUnitCode.toString()
   };
 
@@ -373,6 +415,18 @@ function mapNative(slot) {
 }
 
 /**
+ * @param {object} slot Ad Unit Params by Prebid
+ * @returns {object} Video by OpenRTB 2.5 §3.2.7
+ */
+function mapVideo(slot) {
+  const videoMediaType = deepAccess(slot, `mediaTypes.${VIDEO}`);
+  const context = deepAccess(slot, 'mediaTypes.video.context');
+  if (slot.mediaType === VIDEO || videoMediaType && context === 'instream') {
+    return buildVideoObject(slot);
+  }
+}
+
+/**
  * @param {object} slot Slot config by Prebid
  * @returns {Array} Request Assets by OpenRTB Native Ads 1.1 §4.2
  */
@@ -480,6 +534,28 @@ function interpretBannerBid(serverBid) {
 
 /**
  * @param {object} serverBid Bid by OpenRTB 2.5 §4.2.3
+ * @returns {object} Prebid video bidObject
+ */
+function interpretVideoBid(serverBid) {
+  const vast = serverBid.adm.indexOf('<VAST') === 0 ? 'vastXml' : serverBid.adm.match(/^https?\:/i) ? 'vastUrl' : undefined;
+  return vast && {
+    requestId: serverBid.impid,
+    mediaType: VIDEO,
+    cpm: serverBid.price,
+    creativeId: serverBid.adid,
+    [vast]: serverBid.adm,
+    ttl: TTL,
+    meta: {
+      advertiserDomains: serverBid.adomain
+    },
+    netRevenue: true,
+    currency: 'USD',
+    dur: serverBid.dur
+  }
+}
+
+/**
+ * @param {object} serverBid Bid by OpenRTB 2.5 §4.2.3
  * @returns {object} Prebid native bidObject
  */
 function interpretNativeBid(serverBid) {
@@ -565,4 +641,40 @@ function validateDSA(dsa) {
           v.dsaparams.every(x => isNumber(x))
       ))
     )
+}
+
+function buildVideoObject(bidRequest) {
+  const { w, h } = getVideoSize(bidRequest);
+  let videoObj = {
+    w,
+    h,
+  };
+
+  for (const param of VIDEO_PARAMS) {
+    const paramsValue = deepAccess(bidRequest, `params.video.${param}`);
+    const mediaTypeValue = deepAccess(
+      bidRequest,
+      `mediaTypes.video.${param}`
+    );
+
+    if (paramsValue || mediaTypeValue) {
+      videoObj[param] = paramsValue || mediaTypeValue;
+    }
+  }
+
+  return videoObj;
+}
+
+function getVideoSize(bidRequest) {
+  const playerSize = deepAccess(bidRequest, 'mediaTypes.video.playerSize', [[]]);
+  const { w, h } = deepAccess(bidRequest, 'mediaTypes.video', {});
+
+  if (isNumber(w) && isNumber(h)) {
+    return { w, h };
+  }
+
+  return {
+    w: playerSize[0][0],
+    h: playerSize[0][1],
+  }
 }
