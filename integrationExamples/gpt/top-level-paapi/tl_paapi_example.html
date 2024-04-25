@@ -171,15 +171,15 @@
                                         },
                                         'interestGroupBuyers': [
                                             'https://privacysandbox.openx.net',
-                                            //...(appendRTBHAsBuyer  ? ['https://f.creativecdn.com'] : [])
+                                            ...(appendRTBHAsBuyer  ? ['https://f.creativecdn.com'] : [])
                                         ],
                                         'perBuyerSignals': {
                                             ...(openxBidValue > 0 ? {'https://privacysandbox.openx.net': {
                                                 'bid': openxBidValue/openxBidModififer
                                             }} : {}),
-                                            // ...(appendRTBHAsBuyer  ? {'https://f.creativecdn.com': {
-                                            //     'bid': rtbhouseBidValue/openxBidModififer
-                                            // }} : {}),
+                                            ...(appendRTBHAsBuyer  ? {'https://f.creativecdn.com': {
+                                                'bid': rtbhouseBidValue/openxBidModififer
+                                            }} : {}),
                                         },
                                         'sellerCurrency': 'USD'
                                     }
@@ -314,6 +314,7 @@
 <!-- <code>--enable-features=CookieDeprecationFacilitatedTesting:label/treatment_1.2/force_eligible/true
     --privacy-sandbox-enrollment-overrides=https://localhost:9999</code> -->
 <p>Join OpenX interest group at <a href="https://privacysandbox.openx.net/fledge/advertiser">https://privacysandbox.openx.net/fledge/advertiser</a>
+    (please note it lives only for 1 hour! You need to refresh in case of issues)
 </p>
 <p>Join RTB House interest group at <a href="https://rtbfashion.net">https://rtbfashion.net</a>
 </p>
@@ -321,7 +322,7 @@
     <fieldset>
     <label><input type="checkbox" name="bidders" value="openx" onchange="control(this,'openxbid')">Enable OpenX bidder</label>
     <span id="openxbid" class="distance">
-        <!-- <label id="rtbhasbuyer">Append RTB House as buyer: <input type="checkbox" name="rtbhasbuyer" value="yes"></label> -->
+        <label id="rtbhasbuyer">Append RTB House as buyer: <input type="checkbox" name="rtbhasbuyer" value="yes"></label>
     </span>
     <br>
     &RightArrow; OpenX mocked bid value: <input type="text" name="openxbid">
@@ -356,7 +357,7 @@
     document.querySelector('input[name=openxasbuyer]').checked = appendOpenXAsBuyer;
     document.querySelector('input[name=openxasseller]').checked = openxAsSeller;
     document.querySelector('input[name=rtbhousebid]').value = rtbhouseBidValue || '';
-    // document.querySelector('input[name=rtbhasbuyer]').checked = appendRTBHAsBuyer;
+    document.querySelector('input[name=rtbhasbuyer]').checked = appendRTBHAsBuyer;
     document.querySelector('input[name=floor]').value = pageFloorValue || '';
     function control(checkbox, inputName) {
         // checkbox.form[inputName].disabled = !checkbox.checked;
