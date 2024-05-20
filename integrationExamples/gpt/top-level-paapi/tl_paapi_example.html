@@ -38,6 +38,9 @@
         const appendRTBHAsBuyer = document.location.search.match(/.*[&?]rtbhasbuyer=yes(?:&.*|$)/);
         const openxAsSeller = document.location.search.match(/.*[&?]openxasseller=yes(?:&.*|$)/);
 
+        if(!bidders.includes('openx') && appendOpenXAsBuyer) bidders.push('openx');
+        if(!bidders.includes('rtbhouse') && appendRTBHAsBuyer) bidders.push('rtbhouse');
+
         // var bidders = document.location.search.replace(/.*[&?]bidders=([\w,]+)/, '$1').split(',');
         // if(!bidders.length) bidders = ['openx', 'rtbhouse'];
         // console.log('Found bidders:', bidders)
@@ -238,10 +241,39 @@
         function raa() {
             const conf = pbjs.getPAAPIConfig();
             console.log('PAAPI config:', conf)
+            const sellers = {openx: 'https://privacysandbox.openx.net', rtbhouse: 'https://fledge-ssp.creativecdn.com'}
+            const buyers = {openx: 'https://privacysandbox.openx.net', rtbhouse: 'https://f.creativecdn.com'}
+            
+            Object.entries(conf)
+            .map(([adUnitCode, auctionConfig]) => {
+                        let auctionConfigs = {openx: null, rtbhouse: null}
+                        // console.log('Modifying auctionConfigs:', adUnitCode, auctionConfig);
+                        let rtbhIndex = null;
+                        auctionConfig.componentAuctions.forEach((ac, idx) => {
+                            if(ac.seller == sellers.openx) {
+                                auctionConfigs.openx = ac;
+                            } else if(ac.seller == sellers.rtbhouse) {
+                                auctionConfigs.rtbhouse = ac;
+                                rtbhIndex = idx;
+                            }
+                        });
+                        if(auctionConfigs.openx.interestGroupBuyers.includes(buyers.rtbhouse)) {
+                            // modify perBuyerSignals for rtbhouse at this component auction
+                            auctionConfigs.openx.perBuyerSignals[buyers.rtbhouse] = auctionConfigs.rtbhouse.perBuyerSignals[buyers.rtbhouse];
+                            if(rtbhIndex !== null) {
+                                console.log('removing rtbhouse auction config');
+                                auctionConfig.componentAuctions.splice(rtbhIndex, 1)
+                                // delete auctionConfig.componentAuctions[rtbhIndex];
+                            }
+                        }
+                        // console.log('Modified auctionConfigs:', auctionConfigs);
+            });
+            
+            
             return Promise.all(
                 Object.entries(conf)
                     .map(([adUnitCode, auctionConfig]) => {
-
+                        console.log(adUnitCode, auctionConfig);
                         return navigator.runAdAuction({
                             seller: window.location.origin,
                             decisionLogicURL: new URL('decisionLogic.js', window.location).toString(),
