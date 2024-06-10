@@ -31,8 +31,37 @@ describe('RTBHouseAdapter', () => {
       'auctionId': '1d1a030790a475'
     };
 
-    it('should return true when required params found', function () {
+    let videoBid = {
+      'bidder': 'rtbhouse',
+      'params': {
+        'publisherId': 'PREBID_TEST',
+        'region': 'prebid-eu'
+      },
+      'adUnitCode': 'videoadunit-code',
+      'mediaTypes': {
+        'video': {
+          'context': 'instream',
+          'playerSize': [[640, 480]],
+          'mimes': ['video/mp4'],
+          'protocols': [1, 2, 3, 4, 5, 6, 7, 8],
+          'playbackmethod': [2],
+          'skip': 1
+        }
+      },
+    };
+
+    it('should return true when required params found and correct', function () {
       expect(spec.isBidRequestValid(bid)).to.equal(true);
+    });
+
+    it('should return true when video bid params are correct', function () {
+      expect(spec.isBidRequestValid(videoBid)).to.equal(true);
+    });
+
+    it('should reutrn false if player size is not set', () => {
+      let vBid = Object.assign({}, videoBid);
+      delete vBid.mediaTypes.video.playerSize;
+      expect(spec.isBidRequestValid(vBid)).to.equal(false);
     });
 
     it('Checking backward compatibility. should return true', function () {
@@ -303,6 +332,44 @@ describe('RTBHouseAdapter', () => {
       expect(data.site).to.nested.include({'ext.data': 'some site data'});
       expect(data.device).to.nested.include({'ext.data': 'some device data'});
       expect(data.user).to.nested.include({'ext.data': 'some user data'});
+    });
+
+    it('should use bidder video params if they are set', () => {
+      const videoBidRequest = {
+        'bidder': 'rtbhouse',
+        'params': {
+          'publisherId': 'PREBID_TEST',
+          'region': 'prebid-eu',
+        },
+        'adUnitCode': 'adunit-code',
+        'mediaTypes': {
+          'video': {
+            'context': 'instream',
+            'playerSize': [[640, 480]],
+            'mimes': ['video/mp4'],
+          }
+        },
+      };
+      const bidderVideoParams = {
+        api: [1, 2],
+        mimes: ['video/mp4', 'video/x-flv'],
+        playbackmethod: [3, 4],
+        protocols: [5, 6],
+        minduration: 10,
+        maxduration: 30,
+      };
+      videoBidRequest.params.video = bidderVideoParams;
+
+      const requests = spec.buildRequests([videoBidRequest], bidderRequest);
+      const request = JSON.parse(requests.data);
+
+      expect(request.imp[0]).to.deep.include({
+        video: {
+          ...bidderVideoParams,
+          w: videoBidRequest.mediaTypes.video.playerSize[0][0],
+          h: videoBidRequest.mediaTypes.video.playerSize[0][1],
+        },
+      });
     });
 
     context('DSA', () => {
@@ -762,6 +829,36 @@ describe('RTBHouseAdapter', () => {
           'ttl': 300,
           'meta': { advertiserDomains: ['rtbhouse.com'] },
           'netRevenue': true
+        }
+      ];
+      let bidderRequest;
+      let result = spec.interpretResponse({body: response}, {bidderRequest});
+      expect(Object.keys(result[0])).to.have.members(Object.keys(expectedResponse[0]));
+    });
+
+    it('should get correct video bid response', function () {
+      const response = [{
+        'impid': 'test-requestId',
+        'bidid': 'abc123',
+        'cpm': 1.23,
+        'displayurl': 'http://test-ad.com',
+        'mtype': 2,
+        'price': 0.5,
+        'adm': '<VAST version="2.0">TEST</Ad></VAST>',
+      }];
+
+      const expectedResponse = [
+        {
+          'requestId': '20240605_tj7ukJx1j4pI1rjcZwGj',
+          'cpm': 0.5,
+          'creativeId': 29681110,
+          'vastXml': 'http://test-ad.com',
+          'netRevenue': true,
+          'currency': 'USD',
+          'ttl': 300,
+          'meta': { advertiserDomains: ['rtbhouse.com'] },
+          'mediaType': 'video',
+          'dur': 30
         }
       ];
       let bidderRequest;

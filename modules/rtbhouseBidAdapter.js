@@ -92,8 +92,11 @@ export const spec = {
   gvlid: GVLID,
 
   isBidRequestValid: function (bid) {
-    return !!(includes(REGIONS, bid.params.region) && bid.params.publisherId);
+    if (!checkRequiredParams(bid)) return false;
+    if (hasVideoMediaType(bid)) return checkRequiredParams(bid) && isVideoBidRequestValid(bid)
+    else return true;
   },
+
   buildRequests: function (validBidRequests, bidderRequest) {
     // convert Native ORTB definition to old-style prebid native definition
     validBidRequests = convertOrtbRequestToProprietaryNative(validBidRequests);
@@ -677,4 +680,25 @@ function getVideoSize(bidRequest) {
     w: playerSize[0][0],
     h: playerSize[0][1],
   }
+}
+
+function checkRequiredParams(bid) {
+  return !!(includes(REGIONS, bid.params.region) && bid.params.publisherId);
+}
+
+function isVideoBidRequestValid(bidRequest) {
+  const value =
+    isArray(deepAccess(bidRequest, 'mediaTypes.video.mimes')) &&
+    validateVideoSizes(bidRequest);
+
+  return value;
+}
+
+function validateVideoSizes(bidRequest) {
+  const { w, h } = getVideoSize(bidRequest);
+  return isNumber(w) && isNumber(h);
+}
+
+function hasVideoMediaType(bidRequest) {
+  return deepAccess(bidRequest, 'mediaTypes.video') !== undefined;
 }
