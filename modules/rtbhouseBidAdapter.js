@@ -1,4 +1,4 @@
-import {deepAccess, deepClone, isArray, logError, logInfo, mergeDeep, isEmpty, isPlainObject, isNumber, isStr} from '../src/utils.js';
+import {deepAccess, deepClone, isArray, logError, logInfo, mergeDeep, isEmpty, isPlainObject, isNumber, isStr, deepSetValue} from '../src/utils.js';
 import {getOrigin} from '../libraries/getOrigin/index.js';
 import {BANNER, NATIVE} from '../src/mediaTypes.js';
 import {registerBidder} from '../src/adapters/bidderFactory.js';
@@ -262,8 +262,7 @@ function mapImpression(slot, bidderRequest) {
   }
 
   if (bidderRequest.paapi?.enabled) {
-    imp.ext = imp.ext || {};
-    imp.ext.ae = slot?.ortb2Imp?.ext?.ae
+    deepSetValue(imp, 'ext.ae', slot?.ortb2Imp?.ext?.ae ?? 0);
   } else {
     if (imp.ext?.ae) {
       delete imp.ext.ae;
@@ -272,8 +271,17 @@ function mapImpression(slot, bidderRequest) {
 
   const tid = deepAccess(slot, 'ortb2Imp.ext.tid');
   if (tid) {
-    imp.ext = imp.ext || {};
-    imp.ext.tid = tid;
+    deepSetValue(imp, 'ext.tid', tid);
+  }
+
+  const extData = deepAccess(slot, 'ortb2Imp.ext.data');
+  if(extData) {
+    deepSetValue(imp, 'ext.data', extData);
+  }
+  
+  const instl = deepAccess(slot, 'ortb2Imp.instl');
+  if(instl) {
+    deepSetValue(imp, 'instl', instl);
   }
 
   return imp;
