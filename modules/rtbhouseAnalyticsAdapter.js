@@ -2,7 +2,7 @@ import adapter from '../libraries/analyticsAdapter/AnalyticsAdapter.js';
 import adapterManager from '../src/adapterManager.js';
 import { EVENTS } from '../src/constants.js';
 import { ajax, sendBeacon } from '../src/ajax.js';
-import { deepAccess, deepClone, isArray } from '../src/utils.js';
+import { deepAccess, isArray, getPerformanceNow } from '../src/utils.js';
 
 const {
   AUCTION_INIT,
@@ -49,7 +49,8 @@ let rtbhouseAnalyticsAdapter = Object.assign({},
     analyticsType: ANALYTICS_TYPE,
   }),
   {
-    track({ eventType, args, id, elapsedTime }) {
+    track({ eventType, args }) {
+      const elapsedTime = getPerformanceNow();
       switch (eventType) {
         // temporary unify almost all events
         // case AUCTION_INIT:
@@ -94,7 +95,7 @@ let rtbhouseAnalyticsAdapter = Object.assign({},
           // do nothing
           // break;
         default:
-          sendDataToServer({ eventType, args, id, elapsedTime });  
+          sendDataToServer({ eventType, args, elapsedTime });  
           break;
       }
     }
@@ -152,7 +153,7 @@ const _sendDataToServer = (data) => {
       url, 
       () => logInfo(`${analyticsName} sent events batch of length ${data.length}`),
       stringifiedData, 
-      {contentType: 'text/plain', method: 'POST', fetchMode: 'no-cors', customHeaders} 
+      {contentType: 'text/plain', method: 'POST', fetchMode: 'no-cors', keepalive: true, customHeaders} 
     );
   }
 }
