@@ -2,10 +2,12 @@ import { expect } from 'chai';
 import { intentIqIdSubmodule, storage } from 'modules/intentIqIdSystem.js';
 import * as utils from 'src/utils.js';
 import { server } from 'test/mocks/xhr.js';
-import { CLIENT_HINTS_KEY, FIRST_PARTY_KEY, decryptData, handleClientHints, handleGPPData, readData } from '../../../modules/intentIqIdSystem';
+import { decryptData, handleClientHints, readData, setGamReporting } from '../../../modules/intentIqIdSystem';
+import {getGppValue} from '../../../libraries/intentIqUtils/getGppValue.js';
 import { gppDataHandler, uspDataHandler } from '../../../src/consentHandler';
 import { clearAllCookies } from '../../helpers/cookies';
-import { detectBrowserFromUserAgent, detectBrowserFromUserAgentData } from '../../../libraries/detectBrowserUtils/detectBrowserUtils';
+import { detectBrowserFromUserAgent, detectBrowserFromUserAgentData } from '../../../libraries/intentIqUtils/detectBrowserUtils';
+import {CLIENT_HINTS_KEY, FIRST_PARTY_KEY, NOT_YET_DEFINED, WITH_IIQ} from '../../../libraries/intentIqConstants/intentIqConstants.js';
 
 const partner = 10;
 const pai = '11';
@@ -46,6 +48,24 @@ export const testClientHints = {
   wow64: false
 };
 
+const mockGAM = () => {
+  const targetingObject = {};
+  return {
+    cmd: [],
+    pubads: () => ({
+      setTargeting: (key, value) => {
+        targetingObject[key] = value;
+      },
+      getTargeting: (key) => {
+        return [targetingObject[key]];
+      },
+      getTargetingKeys: () => {
+        return Object.keys(targetingObject);
+      }
+    })
+  };
+};
+
 describe('IntentIQ tests', function () {
   let logErrorStub;
   let testLSValue = {
@@ -57,7 +77,7 @@ describe('IntentIQ tests', function () {
     'date': Date.now(),
     'cttl': 9999999999999,
     'rrtt': 123,
-    'data': 'U2FsdGVkX18AKRyhEPdiL9kuxSigBrlqLaDJWvwSird2O5TdBW67gX+xbL4nYxHDjdS5G5FpdhtpouZiBFw2FBjyUyobZheM857G5q4BapdiA8z3K6j0W+r0im30Ak2SSn2NBfFwxcCgP/UAF5/ddxIIaeWl1yBMZBO+Gic6us2JUg86paAtp3Sk4unCvg1G+4myYYSKgGi/Vrw51ye/jAGn4AdAbFOCojENhV+Ts/XyVK0AQGdC3wqnQUId9MZpB2VoTA9wgXeYEzjpDDJmcKQ18V3WTKnK/H1FBVZa1vovOj13ZUeuMUZbZL83NFE/PkCrzJjRy14orcdnGbDUaxXUBBulDCr21gNnc0mLbYj7b18OQQ75/GhX80HroxbMEyc5tiECBrE/JsW+2sQ4MwoqePPPj/f5Bf4wJ4z3UphjK6maypoWaXsZCZTp2mJYmsf0XsNHLpt1MUrBeAmy6Bewkb+WEAeVe6/b53DQDlo2LQXpSzDPVucMn3CQOWFv1Bvz5cLIZRD8/NtDjgYzWNXHRRAGhhN19yew0ZyeS09x3UBiwER6A6ppv2qQVGs8QNsif3z7pkhkNoETcXQKyv1xa5X87tLvXkO4FYDQQvXEGInyPuNmkFtsZS5FJl+TYrdyaEiCOwRgkshwCU4s93WrfRUtPHtd4zNiA1LWAKGKeBEK6woeFn1YU1YIqsvx9wXfkCbqNkHTi2mD1Eb85a2niSK9BzDdbxwv6EzZ+f9j6esEVdBUIiYmsUuOfTp/ftOHKjBKi1lbeC5imAzZfV/AKvqS5opAVGp7Y9pq976sYblCrPBQ0PYI+Cm2ZNhG1vKc2Pa0rjwJwvusZp2Wvw9zSbnoZUeBi1O+XGYqGhkqYVvH3rXvrFiSmA7pk5Buz6vPd6YV1d55PVahv/4u3jksEI/ZN8QNshrM0foJ4tE/q4x8EKx22txb6433QQybwFfExdmA/XaPqM0rwqTm4qyK0mbX984A8niQka5T5pPkEfL4ALqlIgJ2Fo7X/s6FRU/sZq72JWKcVET4edebD0w5mjeotsjUz5EGT0jRSWRba0yxe4myNaAyY7Y0NTNY9J9Q0JLDFh9Hb05Ejt0Jeoq4Olv8/zFWObBoQtkQyeeRB8L7XIari/xgl191J6euhe5+8vu3ta3tX+XGk+gqdfip1R11tEYpW/XPsV+6DBEfS/8icDHiwK7sPpAgTx7GuJGL1U3Hbg7P/2zUU6xMSR5In/Oa5i1B9FtayGd+utiqrGJsqg8IyFlAt1B9B11k/wJFnWWevMly+y+Ko75ShF7UzfcNR2s41doov+2DEz/YiKH1qHjVOXjslBTYjceB3xqa8sSPDt/vQDDUIX5CPLyVBZj7AeeB/IKDFjZVovBDH92Xl8JTNILRuDHsWmSwNI1DUzgus6ox4u9Mi439caK6KnpNYso+ksLXNEQCm0m15WV2NC+fjkEwLV6hGNbz'
+    'data': 'U2FsdGVkX185JJuQ2Zk0JLGjpgEbqxNy0Yl2qMtj9PqA5Q3IkNQYyTyFyTOkJi9Nf7E43PZQvIUgiUY/A9QxKYmy1LHX9LmZMKlLOcY1Je13Kr1EN7HRF8nIIWXo2jRgS5n0Nmty5995x3YMjLw+aRweoEtcrMC6p4wOdJnxfrOhdg0d/R7b8C+IN85rDLfNXANL1ezX8zwh4rj9XpMmWw=='
   }
   let testResponseWithValues = {
     'abPercentage': 90,
@@ -132,7 +152,7 @@ describe('IntentIQ tests', function () {
     const cookieValue = storage.getCookie('_iiq_fdata_' + partner);
     expect(cookieValue).to.not.equal(null);
     const decryptedData = JSON.parse(decryptData(JSON.parse(cookieValue).data));
-    expect(decryptedData).to.deep.equal(['test_personid']);
+    expect(decryptedData).to.deep.equal({eids: ['test_personid']});
   });
 
   it('should call the IntentIQ endpoint with only partner', function () {
@@ -197,6 +217,68 @@ describe('IntentIQ tests', function () {
     expect(callBackSpy.calledOnce).to.be.true;
   });
 
+  it('should set GAM targeting to U initially and update to A after server response', function () {
+    let callBackSpy = sinon.spy();
+    let mockGamObject = mockGAM();
+    let expectedGamParameterName = 'intent_iq_group';
+
+    const originalPubads = mockGamObject.pubads;
+    let setTargetingSpy = sinon.spy();
+    mockGamObject.pubads = function () {
+      const obj = { ...originalPubads.apply(this, arguments) };
+      const originalSetTargeting = obj.setTargeting;
+      obj.setTargeting = function (...args) {
+        setTargetingSpy(...args);
+        return originalSetTargeting.apply(this, args);
+      };
+      return obj;
+    };
+
+    defaultConfigParams.params.gamObjectReference = mockGamObject;
+
+    let submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+
+    submoduleCallback(callBackSpy);
+    let request = server.requests[0];
+
+    mockGamObject.cmd.forEach(cb => cb());
+    mockGamObject.cmd = []
+
+    let groupBeforeResponse = mockGamObject.pubads().getTargeting(expectedGamParameterName);
+
+    request.respond(
+      200,
+      responseHeader,
+      JSON.stringify({ group: 'A', tc: 20 })
+    );
+
+    mockGamObject.cmd.forEach(item => item());
+
+    let groupAfterResponse = mockGamObject.pubads().getTargeting(expectedGamParameterName);
+
+    expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39');
+    expect(groupBeforeResponse).to.deep.equal([NOT_YET_DEFINED]);
+    expect(groupAfterResponse).to.deep.equal([WITH_IIQ]);
+
+    expect(setTargetingSpy.calledTwice).to.be.true;
+  });
+
+  it('should use the provided gamParameterName from configParams', function () {
+    let callBackSpy = sinon.spy();
+    let mockGamObject = mockGAM();
+    let customParamName = 'custom_gam_param';
+
+    defaultConfigParams.params.gamObjectReference = mockGamObject;
+    defaultConfigParams.params.gamParameterName = customParamName;
+
+    let submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+    submoduleCallback(callBackSpy);
+    mockGamObject.cmd.forEach(cb => cb());
+    let targetingKeys = mockGamObject.pubads().getTargetingKeys();
+
+    expect(targetingKeys).to.include(customParamName);
+  });
+
   it('should not throw Uncaught TypeError when IntentIQ endpoint returns empty response', function () {
     let callBackSpy = sinon.spy();
     let submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
@@ -251,7 +333,7 @@ describe('IntentIQ tests', function () {
       JSON.stringify({ pid: 'test_pid', data: 'test_personid', ls: false })
     );
     expect(callBackSpy.calledOnce).to.be.true;
-    expect(callBackSpy.args[0][0]).to.be.undefined;
+    expect(callBackSpy.args[0][0]).to.deep.equal({eids: []});
   });
 
   it('send addition parameters if were found in localstorage', function () {
@@ -276,7 +358,7 @@ describe('IntentIQ tests', function () {
   it('return data stored in local storage ', function () {
     localStorage.setItem('_iiq_fdata_' + partner, JSON.stringify(testLSValueWithData));
     let returnedValue = intentIqIdSubmodule.getId(allConfigParams);
-    expect(JSON.stringify(returnedValue.id)).to.equal(decryptData(testLSValueWithData.data));
+    expect(returnedValue.id).to.deep.equal(JSON.parse(decryptData(testLSValueWithData.data)).eids);
   });
 
   it('should handle browser blacklisting', function () {
@@ -305,36 +387,39 @@ describe('IntentIQ tests', function () {
     expect(logErrorStub.called).to.be.true;
   });
 
-  describe('handleGPPData', function () {
-    it('should convert array of objects to a single JSON string', function () {
-      const input = [
-        { key1: 'value1' },
-        { key2: 'value2' }
-      ];
-      const expectedOutput = JSON.stringify({ key1: 'value1', key2: 'value2' });
-      const result = handleGPPData(input);
-      expect(result).to.equal(expectedOutput);
-    });
+  describe('getGppValue', function () {
+    const testCases = [
+      {
+        description: 'should return gppString and gpi=0 when GPP data exists',
+        input: { gppString: '{"key1":"value1","key2":"value2"}' },
+        expectedOutput: { gppString: '{"key1":"value1","key2":"value2"}', gpi: 0 }
+      },
+      {
+        description: 'should return empty gppString and gpi=1 when GPP data does not exist',
+        input: null,
+        expectedOutput: { gppString: '', gpi: 1 }
+      },
+      {
+        description: 'should return empty gppString and gpi=1 when gppString is not set',
+        input: {},
+        expectedOutput: { gppString: '', gpi: 1 }
+      },
+      {
+        description: 'should handle GPP data with empty string',
+        input: { gppString: '' },
+        expectedOutput: { gppString: '', gpi: 1 }
+      }
+    ];
 
-    it('should convert a single object to a JSON string', function () {
-      const input = { key1: 'value1', key2: 'value2' };
-      const expectedOutput = JSON.stringify(input);
-      const result = handleGPPData(input);
-      expect(result).to.equal(expectedOutput);
-    });
+    testCases.forEach(({ description, input, expectedOutput }) => {
+      it(description, function () {
+        sinon.stub(gppDataHandler, 'getConsentData').returns(input);
 
-    it('should handle empty object', function () {
-      const input = {};
-      const expectedOutput = JSON.stringify(input);
-      const result = handleGPPData(input);
-      expect(result).to.equal(expectedOutput);
-    });
+        const result = getGppValue();
+        expect(result).to.deep.equal(expectedOutput);
 
-    it('should handle empty array', function () {
-      const input = [];
-      const expectedOutput = JSON.stringify({});
-      const result = handleGPPData(input);
-      expect(result).to.equal(expectedOutput);
+        gppDataHandler.getConsentData.restore();
+      });
     });
   });
 
@@ -430,54 +515,36 @@ describe('IntentIQ tests', function () {
       expect(firstPartyData.uspapi_value).to.equal(uspData);
     });
 
-    it('should set cmpData.gpp and cmpData.gpp_sid if gppData exists and has parsedSections with usnat', function () {
-      const gppData = {
-        parsedSections: {
-          usnat: { key1: 'value1', key2: 'value2' }
-        },
-        applicableSections: ['usnat']
+    it('should create a request with gpp data if gppData exists and has gppString', function () {
+      const mockGppValue = {
+        gppString: '{"key1":"value1","key2":"value2"}',
+        gpi: 0
       };
-      gppDataHandlerStub.returns(gppData);
+
+      const mockConfig = {
+        params: { partner: partner },
+        enabledStorageTypes: ['localStorage']
+      };
+
+      gppDataHandlerStub.returns(mockGppValue);
 
       let callBackSpy = sinon.spy();
-      let submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+      let submoduleCallback = intentIqIdSubmodule.getId(mockConfig).callback;
       submoduleCallback(callBackSpy);
+
       let request = server.requests[0];
-      expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&iiqidtype=2&iiqpcid=');
+
       request.respond(
         200,
         responseHeader,
-        JSON.stringify({ pid: 'test_pid', data: 'test_personid', ls: false, isOptedOut: false })
+        JSON.stringify({ pid: 'test_pid', data: 'test_personid', ls: true })
       );
+
+      expect(request.url).to.contain(`&gpp=${encodeURIComponent(mockGppValue.gppString)}`);
       expect(callBackSpy.calledOnce).to.be.true;
 
       const firstPartyData = JSON.parse(localStorage.getItem(FIRST_PARTY_KEY));
-      expect(firstPartyData.gpp_value).to.equal(JSON.stringify({ key1: 'value1', key2: 'value2' }));
-    });
-
-    it('should handle gppData without usnat in parsedSections', function () {
-      const gppData = {
-        parsedSections: {
-          euconsent: { key1: 'value1' }
-        },
-        applicableSections: ['euconsent']
-      };
-      gppDataHandlerStub.returns(gppData);
-
-      let callBackSpy = sinon.spy();
-      let submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
-      submoduleCallback(callBackSpy);
-      let request = server.requests[0];
-      expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&iiqidtype=2&iiqpcid=');
-      request.respond(
-        200,
-        responseHeader,
-        JSON.stringify({ pid: 'test_pid', data: 'test_personid', ls: false, isOptedOut: true })
-      );
-      expect(callBackSpy.calledOnce).to.be.true;
-
-      const firstPartyData = JSON.parse(localStorage.getItem(FIRST_PARTY_KEY));
-      expect(firstPartyData.gpp_value).to.equal('');
+      expect(firstPartyData.gpp_string_value).to.equal(mockGppValue.gppString);
     });
   });
 
@@ -491,5 +558,19 @@ describe('IntentIQ tests', function () {
     await intentIqIdSubmodule.getId(defaultConfigParams);
     const savedClientHints = readData(CLIENT_HINTS_KEY, ['html5']);
     expect(savedClientHints).to.equal(handleClientHints(testClientHints));
+  });
+
+  it('should run callback from params', async () => {
+    let wasCallbackCalled = false
+    const callbackConfigParams = { params: { partner: partner,
+      pai: pai,
+      pcid: pcid,
+      browserBlackList: 'Chrome',
+      callback: () => {
+        wasCallbackCalled = true
+      } } };
+
+    await intentIqIdSubmodule.getId(callbackConfigParams);
+    expect(wasCallbackCalled).to.equal(true);
   });
 });

@@ -86,7 +86,9 @@ export function createRtdProvider(moduleName, moduleCode, headerPrefix) {
             window.dapCalculateEntropy(resolve, reject);
           } else {
             if (rtdConfig && rtdConfig.params && dapUtils.isValidHttpsUrl(rtdConfig.params.dapEntropyUrl)) {
-              loadExternalScript(rtdConfig.params.dapEntropyUrl, MODULE_CODE, () => { dapUtils.dapGetEntropy(resolve, reject) });
+              loadExternalScript(rtdConfig.params.dapEntropyUrl, MODULE_TYPE_RTD, MODULE_CODE, () => {
+                dapUtils.dapGetEntropy(resolve, reject)
+              });
             } else {
               reject(Error('Please check if dapEntropyUrl is specified and is valid under config.params'));
             }
@@ -114,7 +116,7 @@ export function createRtdProvider(moduleName, moduleCode, headerPrefix) {
     dapRetryTokenize = 0;
     var jsonData = null;
     if (rtdConfig && isPlainObject(rtdConfig.params)) {
-      if (rtdConfig.params.segtax == 504) {
+      if (rtdConfig.params.segtax == 710) {
         let encMembership = dapUtils.dapGetEncryptedMembershipFromLocalStorage();
         if (encMembership) {
           jsonData = dapUtils.dapGetEncryptedRtdObj(encMembership, rtdConfig.params.segtax)
@@ -151,13 +153,30 @@ export function createRtdProvider(moduleName, moduleCode, headerPrefix) {
     return true;
   }
 
+  function onBidResponse(bidResponse, config, userConsent) {
+    if (bidResponse.dealId && typeof (bidResponse.dealId) != typeof (undefined)) {
+      let membership = dapUtils.dapGetMembershipFromLocalStorage(); // Get Membership details from Local Storage
+      let deals = membership.deals; // Get list of Deals the user is mapped to
+      deals.forEach((deal) => {
+        deal = JSON.parse(deal);
+        if (bidResponse.dealId == deal.id) { // Check if the bid response deal Id matches to the deals mapped to the user
+          let token = dapUtils.dapGetTokenFromLocalStorage();
+          let url = config.params.pixelUrl + '?token=' + token + '&ad_id=' + bidResponse.adId + '&bidder=' + bidResponse.bidder + '&bidder_code=' + bidResponse.bidderCode + '&cpm=' + bidResponse.cpm + '&creative_id=' + bidResponse.creativeId + '&deal_id=' + bidResponse.dealId + '&media_type=' + bidResponse.mediaType + '&response_timestamp=' + bidResponse.responseTimestamp;
+          bidResponse.ad = `${bidResponse.ad}<script src="${url}"/>`;
+        }
+      });
+    }
+  }
+
   const rtdSubmodule = {
     name: SUBMODULE_NAME,
     getBidRequestData: getRealTimeData,
+    onBidResponseEvent: onBidResponse,
     init: init
   };
 
   submodule(MODULE_NAME, rtdSubmodule);
+
   const dapUtils = {
 
     callDapAPIs: function(bidConfig, onDone, rtdConfig, userConsent) {
@@ -174,7 +193,7 @@ export function createRtdProvider(moduleName, moduleCode, headerPrefix) {
         const ortb2 = bidConfig.ortb2Fragments.global;
         logMessage('token is: ', token);
         if (token !== null) { // If token is not null then check the membership in storage and add the RTD object
-          if (config.segtax == 504) { // Follow the encrypted membership path
+          if (config.segtax == 710) { // Follow the encrypted membership path
             dapUtils.dapRefreshEncryptedMembership(ortb2, config, token, onDone) // Get the encrypted membership from server
             refreshMembership = false;
           } else {
@@ -231,7 +250,7 @@ export function createRtdProvider(moduleName, moduleCode, headerPrefix) {
             dapUtils.dapLog('Successfully stored DAP 100 Device ID: ' + deviceId100);
           }
           if (refreshMembership) {
-            if (config.segtax == 504) {
+            if (config.segtax == 710) {
               dapUtils.dapRefreshEncryptedMembership(ortb2, config, token, onDone);
             } else {
               dapUtils.dapRefreshMembership(ortb2, config, token, onDone);
@@ -254,6 +273,7 @@ export function createRtdProvider(moduleName, moduleCode, headerPrefix) {
           membership = {
             said: item.said,
             cohorts: item.cohorts,
+            deals: item.deals,
             attributes: null
           };
         }
@@ -274,6 +294,7 @@ export function createRtdProvider(moduleName, moduleCode, headerPrefix) {
           }
           item.said = membership.said;
           item.cohorts = membership.cohorts;
+          item.deals = membership.deals ? membership.deals : [];
           storage.setDataInLocalStorage(DAP_MEMBERSHIP, JSON.stringify(item));
           dapUtils.dapLog('Successfully updated and stored membership:');
           dapUtils.dapLog(item);
@@ -430,7 +451,7 @@ export function createRtdProvider(moduleName, moduleCode, headerPrefix) {
 
     checkAndAddRealtimeData: function(ortb2, data, segtax) {
       if (data.rtd) {
-        if (segtax == 504 && dapUtils.checkIfSegmentsAlreadyExist(ortb2, data.rtd, 504)) {
+        if (segtax == 710 && dapUtils.checkIfSegmentsAlreadyExist(ortb2, data.rtd, 710)) {
           logMessage('DEBUG(handleInit): rtb Object already added');
         } else {
           addRealTimeData(ortb2, data.rtd);
@@ -609,13 +630,18 @@ export function createRtdProvider(moduleName, moduleCode, headerPrefix) {
       }
 
       let apiParams = {
-        'type': identity.type,
+        'type': identity.type.toLowerCase(),
+        'identity': identity.value
       };
-
-      if (identity.type === 'hid') {
+      if (identity.type === 'simpleid') {
         this.addIdentifier(identity, apiParams).then((apiParams) => {
           this.callTokenize(config, identity, apiParams, onDone, onSuccess, onError);
         });
+      } else if (identity.type === 'compositeid') {
+        identity = JSON.stringify(identity);
+        this.callTokenize(config, identity, apiParams, onDone, onSuccess, onError);
+      } else if (identity.type === 'hashedid') {
+        this.callTokenize(config, identity, apiParams, onDone, onSuccess, onError);
       } else {
         this.callTokenize(config, identity, apiParams, onDone, onSuccess, onError);
       }
@@ -637,6 +663,7 @@ export function createRtdProvider(moduleName, moduleCode, headerPrefix) {
       switch (config.api_version) {
         case 'x1':
         case 'x1-dev':
+        case 'x2':
           method = 'POST';
           path = '/data-activation/' + config.api_version + '/domain/' + config.domain + '/identity/tokenize';
           body = JSON.stringify(apiParams);
@@ -646,7 +673,7 @@ export function createRtdProvider(moduleName, moduleCode, headerPrefix) {
           return;
       }
 
-      let customHeaders = { 'Content-Type': 'application/json' };
+      let customHeaders = {};
       let dapSSID = JSON.parse(storage.getDataFromLocalStorage(DAP_SS_ID));
       if (dapSSID) {
         customHeaders[headerPrefix + '-DAP-SS-ID'] = dapSSID;
@@ -659,6 +686,7 @@ export function createRtdProvider(moduleName, moduleCode, headerPrefix) {
           switch (config.api_version) {
             case 'x1':
             case 'x1-dev':
+            case 'x2':
               token = request.getResponseHeader(headerPrefix + '-DAP-Token');
               break;
           }
@@ -671,7 +699,8 @@ export function createRtdProvider(moduleName, moduleCode, headerPrefix) {
 
       ajax(url, cb, body, {
         method: method,
-        customHeaders: customHeaders
+        customHeaders: customHeaders,
+        contentType: 'application/json'
       });
     },
 
@@ -718,8 +747,7 @@ export function createRtdProvider(moduleName, moduleCode, headerPrefix) {
         return;
       }
 
-      let path = '/data-activation/' +
-        config.api_version +
+      let path = '/data-activation/x1' +
         '/token/' + token +
         '/membership';
 
@@ -786,8 +814,7 @@ export function createRtdProvider(moduleName, moduleCode, headerPrefix) {
         error: (error, request) => { onError(request, request.status, error, onDone); }
       };
 
-      let path = '/data-activation/' +
-        config.api_version +
+      let path = '/data-activation/x1' +
         '/token/' + token +
         '/membership/encrypt';
 
@@ -795,8 +822,8 @@ export function createRtdProvider(moduleName, moduleCode, headerPrefix) {
 
       ajax(url, cb, undefined, {
         method: 'GET',
+        contentType: 'application/json',
         customHeaders: {
-          'Content-Type': 'application/json',
           'Pragma': 'akamai-x-get-extracted-values'
         }
       });

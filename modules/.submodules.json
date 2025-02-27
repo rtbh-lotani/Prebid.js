@@ -29,6 +29,7 @@
       "lockrAIMIdSystem",
       "lotamePanoramaIdSystem",
       "merkleIdSystem",
+      "mobkoiIdSystem",
       "mwOpenLinkIdSystem",
       "mygaruIdSystem",
       "naveggIdSystem",
@@ -36,9 +37,11 @@
       "novatiqIdSystem",
       "oneKeyIdSystem",
       "operaadsIdSystem",
+      "permutiveIdentityManagerIdSystem",
       "pubProvidedIdSystem",
       "publinkIdSystem",
       "quantcastIdSystem",
+      "rewardedInterestIdSystem",
       "sharedIdSystem",
       "tapadIdSystem",
       "teadsIdSystem",
@@ -58,6 +61,7 @@
     ],
     "rtdModule": [
       "1plusXRtdProvider",
+      "51DegreesRtdProvider",
       "a1MediaRtdProvider",
       "aaxBlockmeterRtdProvider",
       "adagioRtdProvider",
@@ -80,6 +84,7 @@
       "greenbidsRtdProvider",
       "growthCodeRtdProvider",
       "hadronRtdProvider",
+      "humansecurityRtdProvider",
       "iasRtdProvider",
       "idWardRtdProvider",
       "imRtdProvider",
@@ -97,6 +102,7 @@
       "qortexRtdProvider",
       "reconciliationRtdProvider",
       "relevadRtdProvider",
+      "semantiqRtdProvider",
       "sirdataRtdProvider",
       "symitriDapRtdProvider",
       "timeoutRtdProvider",
@@ -109,7 +115,8 @@
     ],
     "videoModule": [
       "jwplayerVideoProvider",
-      "videojsVideoProvider"
+      "videojsVideoProvider",
+      "adplayerproVideoProvider"
     ],
     "paapi": [
       "paapiForGpt",
