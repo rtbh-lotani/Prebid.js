@@ -252,14 +252,19 @@ function mapImpression(slot, bidderRequest) {
     deepSetValue(imp, 'ext.tid', tid);
   }
 
-  const extData = deepAccess(slot, 'ortb2Imp.ext.data');
-  if(extData) {
-    deepSetValue(imp, 'ext.data', extData);
+  const gpid = deepAccess(slot, 'ortb2Imp.ext.gpid');
+  if(gpid) {
+    deepSetValue(imp, 'ext.gpid', gpid);
   }
-  
-  const instl = deepAccess(slot, 'ortb2Imp.instl');
-  if(instl) {
-    deepSetValue(imp, 'instl', instl);
+
+  const gpidPbAdSlot = deepAccess(slot, 'ortb2Imp.ext.data.pbadslot');
+  if(gpidPbAdSlot) {
+    deepSetValue(imp, 'ext.data.pbadslot', gpidPbAdSlot);
+  }
+
+  const gpidAdserver = deepAccess(slot, 'ortb2Imp.ext.data.adserver');
+  if(gpidAdserver) {
+    deepSetValue(imp, 'ext.data.adserver', gpidAdserver);
   }
 
   return imp;
