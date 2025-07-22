@@ -64,7 +64,7 @@
     "babel-loader": "^8.0.5",
     "babel-plugin-istanbul": "^6.1.1",
     "body-parser": "^1.19.0",
-    "chai": "^4.2.0",
+    "chai": "^4.5.0",
     "deep-equal": "^2.0.3",
     "eslint": "^9.31.0",
     "eslint-plugin-import": "^2.31.0",
